@@ -40,10 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# database (SQLite)
-*.db
-*.db-shm
-*.db-wal
+# database (SQLite) - Allowed for backup as per user request
+!dev.db
+!dev.db-shm
+!dev.db-wal
 
 # environment files
 .env
