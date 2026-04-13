@@ -1,0 +1,312 @@
+generator client {
+  provider        = "prisma-client-js"
+  engineType      = "library"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id               String       @id @default(uuid())
+  name             String?
+  email            String?      @unique
+  emailVerified    DateTime?
+  image            String?
+  password         String?
+  provider         String?      @default("credentials")
+  twoFactorEnabled Boolean      @default(false)
+  roles            FamilyRole[]
+  accounts         Account[]
+  sessions         Session[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Family {
+  id           String         @id @default(uuid())
+  name         String
+  description  String?
+  slug         String         @unique
+  coverImage   String?
+  motto        String?
+  origin       String?
+  isPublic     Boolean        @default(false)
+  settings     Json?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  roles        FamilyRole[]
+  branches     Branch[]
+  members      FamilyMember[]
+  relationships Relationship[]
+  events       Event[]
+  documents    Document[]
+  auditLogs    AuditLog[]
+  editRequests EditRequest[]
+  notifications Notification[]
+}
+
+enum Role {
+  SUPER_ADMIN
+  FAMILY_ADMIN
+  BRANCH_MANAGER
+  MEMBER
+  GUEST
+}
+
+model FamilyRole {
+  id        String   @id @default(uuid())
+  userId    String
+  familyId  String
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, familyId])
+}
+
+model Branch {
+  id          String         @id @default(uuid())
+  familyId    String
+  name        String
+  description String?
+  order       Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  members     FamilyMember[]
+  family      Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNKNOWN
+}
+
+model FamilyMember {
+  id              String         @id @default(uuid())
+  familyId        String
+  branchId        String?
+  firstName       String
+  lastName        String
+  fullName        String
+  gender          Gender         @default(UNKNOWN)
+  dateOfBirth     DateTime?
+  birthDay        Int?
+  birthMonth      Int?
+  birthYear       Int?
+  isBirthDateLunar Boolean       @default(false)
+  
+  dateOfDeath     DateTime?
+  deathDay        Int?
+  deathMonth      Int?
+  deathYear       Int?
+  isDeathDateLunar Boolean       @default(false)
+  
+  isAlive         Boolean        @default(true)
+  avatar          String?
+  biography       String?
+  occupation      String?
+  birthPlace      String?
+  currentLocation String?
+  latitude        Float?
+  longitude       Float?
+  generation      Int            @default(1)
+  birthOrder      Int            @default(0)
+  honorific       String?
+  alias           String?
+  title           String?
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  // Anniversary interactions
+  lastIncenseLitAt DateTime?
+  
+  updatedAt       DateTime       @updatedAt
+
+  family          Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  branch          Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  sourceRels      Relationship[] @relation("SourceMember")
+  targetRels      Relationship[] @relation("TargetMember")
+  events          Event[]
+  documents       Document[]
+  comments        Comment[]
+  editRequests    EditRequest[]
+}
+
+enum RelationshipType {
+  PARENT_CHILD
+  SPOUSE
+  SIBLING
+  ADOPTED
+}
+
+model Relationship {
+  id             String           @id @default(uuid())
+  familyId       String
+  sourceMemberId String
+  targetMemberId String
+  type           RelationshipType
+  startDate      DateTime?
+  endDate        DateTime?
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+
+  family       Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  sourceMember FamilyMember @relation("SourceMember", fields: [sourceMemberId], references: [id], onDelete: Cascade)
+  targetMember FamilyMember @relation("TargetMember", fields: [targetMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceMemberId, targetMemberId, type])
+}
+
+enum EventType {
+  BIRTH
+  DEATH
+  MARRIAGE
+  MIGRATION
+  CUSTOM
+}
+
+model Event {
+  id          String    @id @default(uuid())
+  memberId    String
+  familyId    String
+  type        EventType
+  title       String
+  description String?
+  eventDate   DateTime?
+  location    String?
+  era         String?
+  icon        String?
+  media       String?   // Store JSON string of uploaded files: [{url, type, name}]
+  createdAt   DateTime  @default(now())
+
+  family Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  member FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  familyId    String
+  memberId    String?
+  name        String
+  url         String?  // Now optional, using 'files' instead
+  mimeType    String?  // Now optional
+  size        Int?     // Now optional
+  files       Json?    // Array of { url, name, size, mimeType }
+  version     Int      @default(1)
+  type        String?
+  description String?
+  uploadedBy  String
+  
+  createdAt   DateTime @default(now())
+
+  family Family        @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  member FamilyMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+}
+
+model Comment {
+  id              String   @id @default(uuid())
+  memberId        String
+  authorId        String
+  content         String
+  isApproved      Boolean  @default(true)
+  parentCommentId String?
+  createdAt       DateTime @default(now())
+
+  member FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  parent Comment?     @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies Comment[]   @relation("CommentReplies")
+}
+
+enum NotificationType {
+  BIRTHDAY
+  ANNIVERSARY
+  SYSTEM
+  EDIT_REQUEST
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  familyId  String?
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  family Family? @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  familyId   String
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  changes    Json?
+  createdAt  DateTime @default(now())
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model EditRequest {
+  id              String        @id @default(uuid())
+  familyId        String
+  memberId        String
+  requestedBy     String
+  reviewedBy      String?
+  status          RequestStatus @default(PENDING)
+  proposedChanges Json
+  reviewNote      String?
+  createdAt       DateTime      @default(now())
+
+  family Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  member FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}

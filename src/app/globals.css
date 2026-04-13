@@ -1,0 +1,270 @@
+@import "tailwindcss";
+
+:root {
+  /* Modern Light Heritage */
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --primary: #e11d48;
+  --secondary: #eab308;
+  --accent: #64748b;
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+
+  /* Gender colors */
+  --male: #0284c7;
+  --female: #db2777;
+
+  /* Glow tokens */
+  --glow-gold: 0 0 20px rgba(212, 175, 55, 0.15);
+  --glow-gold-strong: 0 0 40px rgba(212, 175, 55, 0.25);
+  --glow-rose: 0 0 20px rgba(244, 63, 94, 0.2);
+}
+
+.dark {
+  /* Ancient Dark Heritage — OLED optimized */
+  --background: #0a0707;
+  --foreground: #e2d1b0;
+  --primary: #5c1e1e;
+  --secondary: #d4af37;
+  --accent: #8e735b;
+
+  --card: #140c0c;
+  --card-foreground: #e2d1b0;
+
+  --border: rgba(212, 175, 55, 0.15);
+  --input: rgba(212, 175, 55, 0.15);
+
+  --male: #d4af37;
+  --female: #f9a8d4;
+
+  --glow-gold: 0 0 30px rgba(212, 175, 55, 0.12);
+  --glow-gold-strong: 0 0 60px rgba(212, 175, 55, 0.22);
+  --glow-rose: 0 0 25px rgba(244, 63, 94, 0.25);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-card: var(--card);
+  --color-border: var(--border);
+
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+  --radius-sm: 0.25rem;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  @apply tracking-tight;
+}
+
+/* ─── Texture & Heritage Effects ─── */
+
+.bg-parchment {
+  background-image: url("https://www.transparenttextures.com/patterns/handmade-paper.png");
+}
+
+.bg-ancient-dark {
+  background-color: #0a0707;
+  background-image:
+    radial-gradient(circle at 15% 15%, rgba(212, 175, 55, 0.08) 0%, transparent 10%),
+    radial-gradient(circle at 85% 85%, rgba(212, 175, 55, 0.05) 0%, transparent 15%),
+    radial-gradient(circle at 50% 10%, rgba(212, 175, 55, 0.03) 0%, transparent 20%),
+    url("https://www.transparenttextures.com/patterns/handmade-paper.png");
+  background-attachment: fixed;
+}
+
+.bg-charcoal-wood {
+  background-color: #140c0c;
+  background-image: url("https://www.transparenttextures.com/patterns/wood-pattern.png");
+  opacity: 0.98;
+}
+
+.text-gold {
+  @apply text-secondary;
+}
+
+.border-heritage {
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--secondary);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.1);
+}
+
+/* ─── Skeleton Loader ─── */
+
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(212, 175, 55, 0.04) 25%,
+    rgba(212, 175, 55, 0.10) 50%,
+    rgba(212, 175, 55, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+  border-radius: 0.75rem;
+}
+
+.skeleton-dark {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.07) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+  border-radius: 0.75rem;
+}
+
+/* ─── Animations ─── */
+
+.duration-350 {
+  transition-duration: 350ms;
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-slide-up {
+  animation: fadeSlideUp 0.3s ease-out;
+}
+
+/* Safe shimmer — decorative accent only, no layout shift */
+@keyframes shimmer-gold {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.9; }
+}
+
+.animate-shimmer-gold {
+  animation: shimmer-gold 3s ease-in-out infinite;
+}
+
+/* Heritage glow pulse — for today's anniversary badge only */
+@keyframes glow-pulse-rose {
+  0%, 100% { box-shadow: 0 0 8px rgba(244, 63, 94, 0.3); }
+  50%       { box-shadow: 0 0 20px rgba(244, 63, 94, 0.6); }
+}
+
+.animate-glow-rose {
+  animation: glow-pulse-rose 2s ease-in-out infinite;
+}
+
+/* ─── Reduced Motion — Respect User Preferences ─── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .skeleton,
+  .skeleton-dark {
+    animation: none;
+    opacity: 0.06;
+  }
+}
+
+/* ─── Scrollbar ─── */
+
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.2);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.45);
+}
+
+/* Legacy compatibility */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 4px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* ─── Ancient Scroll (Chiếu Thư) Aesthetic ─── */
+
+.bg-ancient-scroll {
+  background-color: #fdf6e3;
+  background-image:
+    radial-gradient(circle at center, transparent 0%, rgba(200, 170, 130, 0.15) 100%),
+    url("https://www.transparenttextures.com/patterns/handmade-paper.pattern");
+  background-attachment: fixed;
+}
+
+.scroll-vignette {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  box-shadow: inset 0 0 150px rgba(92, 30, 30, 0.08);
+  background: radial-gradient(circle at center, transparent 30%, rgba(92, 30, 30, 0.03) 100%);
+}
+
+.scroll-border {
+  pointer-events: none;
+  position: absolute;
+  inset: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 0.5rem;
+  z-index: 6;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
