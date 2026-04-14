@@ -14,16 +14,21 @@ import {
   useViewport,
   useNodes,
   getViewportForBounds,
+  getNodesBounds,
   Panel,
 } from "@xyflow/react";
 import { motion } from "framer-motion";
 import { useParams, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { Role } from "@prisma/client";
 import "@xyflow/react/dist/style.css";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 // Tự build: Node & Edge tùy chỉnh
 import { FamilyNode } from "./Flow/FamilyNode";
 import { BusEdge } from "./Flow/BusEdge";
-import { useFamilyTreeLayout, parseMembers } from "./Flow/useFamilyTreeLayout";
+import { useFamilyTreeLayout, parseMembers, type TreeMember } from "./Flow/useFamilyTreeLayout";
+import { type TreeDisplaySettings } from "@/types/member";
 import { findKinshipNodes, calculateVietnameseKinship } from "./Flow/kinshipUtils";
 import { KinshipTooltip } from "./Flow/KinshipTooltip";
 import { PersonDetailsModal } from "./PersonDetailsModal";
@@ -32,6 +37,7 @@ import { AddMemberModal } from "../members/AddMemberModal";
 import { EditMemberModal } from "../members/EditMemberModal";
 import { DeleteMemberDialog } from "../members/DeleteMemberDialog";
 import { getMembers, getBranches, getAllMembersSimple, addMember, updateMember, deleteMember, swapSiblingOrder } from "@/app/actions/members";
+import { getUserPreferencesAction, updateUserPreferencesAction } from "@/app/actions/settings";
 import { Member, Branch, SimpleMember } from "@/types/member";
 
 // ----------------------------------------------------------------------------
@@ -60,6 +66,7 @@ interface ControlsProps {
   onResetHidden: () => void;
   displaySettings: TreeDisplaySettings;
   setDisplaySettings: (v: TreeDisplaySettings) => void;
+  handleUpdateDisplaySettings: (v: TreeDisplaySettings) => void;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -74,9 +81,10 @@ const CustomControls = ({
   onResetHidden,
   displaySettings,
   setDisplaySettings,
+  handleUpdateDisplaySettings,
   containerRef
 }: ControlsProps) => {
-  const { fitView, zoomIn, zoomOut } = useReactFlow();
+  const { fitView, zoomIn, zoomOut, getNodes } = useReactFlow();
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingSvg, setIsExportingSvg] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -217,8 +225,7 @@ const CustomControls = ({
       triggerDownload(dataUrl, fileName);
       
     } catch (err: unknown) {
-       console.error("Vector Render Error: ", err);
-       alert("Lỗi xuất SVG. Vui lòng thử lại!");
+       showToast("Lỗi xuất SVG. Vui lòng thử lại!", "error");
     } finally {
        setIsExportingSvg(false);
        setIsExportMode(false);
@@ -283,8 +290,7 @@ const CustomControls = ({
       triggerDownload(pdfDataUrl, fileName);
       
     } catch (err: unknown) {
-      console.error("PDF Export Error: ", err);
-      alert("LỖI XUẤT PDF:\n" + ((err as Error).message || String(err)));
+      showToast("Lỗi xuất PDF. Vui lòng thử lại!", "error");
     } finally {
       setIsExporting(false);
       setIsExportMode(false);
@@ -383,7 +389,10 @@ const CustomControls = ({
                      ].map((item) => (
                         <button 
                           key={item.key}
-                          onClick={() => setDisplaySettings({ ...displaySettings, [item.key]: !displaySettings[item.key as keyof TreeDisplaySettings] })}
+                          onClick={() => {
+                            const newSettings = { ...displaySettings, [item.key]: !displaySettings[item.key as keyof TreeDisplaySettings] };
+                            handleUpdateDisplaySettings(newSettings);
+                          }}
                           className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg group transition-colors"
                         >
                           <div className="flex items-center gap-2">
@@ -439,29 +448,51 @@ interface CoreProps {
 }
 
 function FamilyTreeCore({ rawMembers, onRefresh, branches, simpleMembers, isUrlFocusHandled }: CoreProps) {
+  const { data: session } = useSession();
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const urlMemberId = searchParams.get("memberId");
   
-  const [displaySettings, setDisplaySettings] = useState<TreeDisplaySettings>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tree-display-settings-v1');
-      if (saved) return JSON.parse(saved);
-    }
-    return {
-      showAvatar: true,
-      showDates: true,
-      showGeneration: true,
-      showHonorifics: true,
-      showOccupation: true,
-      showSpouses: true,
-      showBranch: true
-    };
+  const [displaySettings, setDisplaySettings] = useState<TreeDisplaySettings>({
+    showAvatar: true,
+    showDates: true,
+    showGeneration: true,
+    showHonorifics: true,
+    showOccupation: true,
+    showSpouses: true,
+    showBranch: true
   });
 
+  // Fetch preferences from DB on mount
   useEffect(() => {
-    localStorage.setItem('tree-display-settings-v1', JSON.stringify(displaySettings));
-  }, [displaySettings]);
+    const fetchPrefs = async () => {
+      try {
+        const prefs = await getUserPreferencesAction();
+        if (prefs) {
+          setDisplaySettings(prefs);
+        }
+      } catch (err) {
+        // Fallback to localStorage if DB fetch fails
+        console.warn("[Tree] DB Prefs fetch failed, using local fallback", err);
+        const saved = localStorage.getItem('tree-display-settings-v1');
+        if (saved) setDisplaySettings(JSON.parse(saved));
+      }
+    };
+    fetchPrefs();
+  }, []);
+
+  // Sync to database and localStorage when changed
+  const handleUpdateDisplaySettings = useCallback(async (newSettings: TreeDisplaySettings) => {
+    setDisplaySettings(newSettings);
+    localStorage.setItem('tree-display-settings-v1', JSON.stringify(newSettings));
+    
+    // Silence-save to DB
+    try {
+      await updateUserPreferencesAction(newSettings);
+    } catch (err) {
+      console.error("[Tree] Failed to save preferences to DB:", err);
+    }
+  }, []);
 
   const [toolbarConfig, setToolbarConfig] = useState<{
     position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -522,6 +553,27 @@ function FamilyTreeCore({ rawMembers, onRefresh, branches, simpleMembers, isUrlF
     }
   }, [onRefresh]);
 
+  // Client-side permission check helpers
+  const { canEditGlobal, userRoles } = useUserPermissions();
+  
+  const checkCanEdit = useCallback((member: TreeMember) => {
+    if (canEditGlobal) return true;
+    return userRoles.some((r: any) => {
+      if (r.role === Role.BRANCH_MANAGER && r.branchId === member.branchId) return true;
+      if (r.role === Role.MEMBER && r.branchId === member.branchId) return true; // Hỗ trợ MEMBER kèm branchId
+      return false;
+    });
+  }, [canEditGlobal, userRoles]);
+
+  const checkCanAdd = useCallback((branchId?: string) => {
+    if (canEditGlobal) return true;
+    if (branchId) {
+      return userRoles.some((r: any) => 
+        (r.role === Role.BRANCH_MANAGER || r.role === Role.MEMBER) && r.branchId === branchId
+      );
+    }
+    return false;
+  }, [canEditGlobal, userRoles]);
 
   // Hover & Tooltip Events
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -531,7 +583,7 @@ function FamilyTreeCore({ rawMembers, onRefresh, branches, simpleMembers, isUrlF
   const kinship = useMemo(() => findKinshipNodes(selectedNodeId, treeMembersList), [selectedNodeId, treeMembersList]);
   const { highlightedNodes, highlightedEdges } = kinship;
 
-  const { fitView, getNodesBounds, setCenter, getNode, getViewport } = useReactFlow();
+  const { fitView, getNodesBounds, setCenter, getNode, getViewport, getNodes } = useReactFlow();
   const flowNodes = useNodes();
   const [hasInitializedFit, setHasInitializedFit] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -668,6 +720,8 @@ function FamilyTreeCore({ rawMembers, onRefresh, branches, simpleMembers, isUrlF
       handleOpenAddChild,
       handleHideMember,
       handleDeleteMember,
+      checkCanEdit,
+      checkCanAdd,
       activeMenuId,
       handleMenuToggle,
       sessionHiddenIds,
@@ -755,7 +809,7 @@ function FamilyTreeCore({ rawMembers, onRefresh, branches, simpleMembers, isUrlF
         const w = targetNode.measured?.width || (targetNode as any).width || 240;
         const h = targetNode.measured?.height || (targetNode as any).height || 150;
         
-        console.log("[Tree] Cinematic Center executing to:", targetNode.data.member.fullName, { x, y });
+        console.log("[Tree] Cinematic Center executing to:", (targetNode.data as any).member.fullName, { x, y });
         
         // Thực hiện căn giữa với zoom vừa phải (0.75) và duration điện ảnh (1200ms)
         setCenter(x + w / 2, y + h / 2, { zoom: 0.75, duration: 1200 });
@@ -793,6 +847,7 @@ function FamilyTreeCore({ rawMembers, onRefresh, branches, simpleMembers, isUrlF
          onResetHidden={() => setSessionHiddenIds(new Set())}
          displaySettings={displaySettings}
          setDisplaySettings={setDisplaySettings}
+         handleUpdateDisplaySettings={handleUpdateDisplaySettings}
          toolbarConfig={toolbarConfig}
          setToolbarConfig={setToolbarConfig}
          containerRef={containerRef}
@@ -884,8 +939,8 @@ function FamilyTreeCore({ rawMembers, onRefresh, branches, simpleMembers, isUrlF
       <PersonDetailsModal 
         member={detailMemberObject} 
         onClose={() => setDetailsSelectedId(null)} 
-        onAddSpouse={handleOpenAddSpouse}
-        onAddChild={handleOpenAddChild}
+        onAddSpouse={detailMemberObject && checkCanAdd(detailMemberObject.branchId || undefined) ? handleOpenAddSpouse : undefined}
+        onAddChild={detailMemberObject && checkCanAdd(detailMemberObject.branchId || undefined) ? handleOpenAddChild : undefined}
       />
 
       <AddMemberModal

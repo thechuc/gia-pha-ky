@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Be_Vietnam_Pro } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { SessionProvider } from "next-auth/react";
+import { ToastProvider } from "@/components/ui/Toast";
+import AuthModal from "@/components/auth/AuthModal";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -43,7 +46,12 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <SessionProvider>
+            <ToastProvider>
+              {children}
+              <AuthModal />
+            </ToastProvider>
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>

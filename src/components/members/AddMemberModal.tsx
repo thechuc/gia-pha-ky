@@ -200,7 +200,7 @@ export function AddMemberModal({
     setHonorific(""); setAlias(""); setTitle("");
     setRelType(""); setFatherId(""); setMotherId("");
     setSpouseMode("select"); setSpouseSearch(""); setSpouseId("");
-    setNewSpouse({ firstName: "", lastName: "", gender: "FEMALE", dateOfBirth: "", birthPlace: "" });
+    setNewSpouse({ firstName: "", lastName: "", gender: "FEMALE", dateOfBirth: "", birthPlace: "", isBirthDateLunar: false });
   };
 
   const handleAvatarUpload = async (file: File) => {
@@ -590,7 +590,7 @@ export function AddMemberModal({
                         <p className="text-[11px] text-white/30 italic">
                           {spouseSearch ? `Không tìm thấy "${spouseSearch}"` : `Chưa có ${gender === "MALE" ? "thành viên nữ" : "thành viên nam"} trong hệ thống`}
                         </p>
-                        <button type="button" onClick={() => { setSpouseMode("create"); setNewSpouse(p => ({ ...p, firstName: spouseSearch, gender: gender === "MALE" ? "FEMALE" : "MALE" })); }}
+                        <button type="button" onClick={() => { setSpouseMode("create"); setNewSpouse(p => ({ ...p, firstName: spouseSearch, gender: gender === "MALE" ? "FEMALE" : "MALE", isBirthDateLunar: false })); }}
                           className="text-[11px] text-secondary/60 hover:text-secondary underline underline-offset-2 cursor-pointer transition-colors">
                           + Thêm {gender === "MALE" ? "vợ" : "chồng"} mới
                         </button>

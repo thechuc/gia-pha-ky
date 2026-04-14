@@ -22,10 +22,11 @@ import { Member } from "@/types/member";
 interface MemberCardProps {
   member: Member;
   index: number;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
   onViewTree: (id: string) => void;
   branchName?: string;
+  canEdit?: boolean;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -96,7 +97,15 @@ function getSpouseTitle(index: number, gender: string): string {
 }
 
 // ─── MemberCard ─────────────────────────────────────────────────────────────────
-export function MemberCard({ member, index, onEdit, onDelete, onViewTree, branchName: propBranchName }: MemberCardProps) {
+export function MemberCard({ 
+  member, 
+  index, 
+  onEdit, 
+  onDelete, 
+  onViewTree, 
+  branchName: propBranchName,
+  canEdit = false, 
+}: MemberCardProps) {
   const isMale = member.gender === "MALE";
   const branchName = propBranchName || member.branch?.name || member.branchName;
 
@@ -166,7 +175,7 @@ export function MemberCard({ member, index, onEdit, onDelete, onViewTree, branch
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.04 }}
       className="group relative bg-[#1A0F0F] border border-white/8 hover:border-secondary/30 rounded-2xl shadow-lg hover:shadow-[0_16px_40px_rgba(0,0,0,0.6)] transition-all duration-300 overflow-hidden cursor-pointer flex flex-col"
-      onClick={() => onEdit(member.id)}
+      onClick={() => onEdit?.(member.id)}
     >
       {/* ── Original Background System: Header Band Gradient ── */}
       <div className={`absolute inset-x-0 top-0 h-32 pointer-events-none ${
@@ -297,18 +306,24 @@ export function MemberCard({ member, index, onEdit, onDelete, onViewTree, branch
           <Network className="w-3 h-3" /> Cây
         </button>
         <div className="flex items-center gap-1">
-          <button
-            onClick={e => { e.stopPropagation(); onEdit(member.id); }}
-            className="p-1.5 rounded-lg text-white/30 hover:text-secondary hover:bg-secondary/10 transition-all cursor-pointer"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={e => { e.stopPropagation(); onDelete(member.id); }}
-            className="p-1.5 rounded-lg text-white/30 hover:text-rose-400 hover:bg-rose-900/20 transition-all cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {canEdit && (
+            <>
+              <button
+                onClick={e => { e.stopPropagation(); onEdit?.(member.id); }}
+                className="p-1.5 rounded-lg text-white/30 hover:text-secondary hover:bg-secondary/10 transition-all cursor-pointer"
+                title="Chỉnh sửa"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); onDelete?.(member.id); }}
+                className="p-1.5 rounded-lg text-white/30 hover:text-rose-400 hover:bg-rose-900/20 transition-all cursor-pointer"
+                title="Xóa khỏi gia phả"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </motion.div>

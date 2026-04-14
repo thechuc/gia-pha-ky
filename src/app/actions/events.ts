@@ -147,7 +147,14 @@ export async function getFamilyEvents() {
     return [];
   }
 }
+import { auth } from "@/auth";
+
 export async function lightIncenseAction(memberId: string) {
+  const session = await auth();
+  if (!session?.user) {
+    throw new Error("Bạn cần đăng nhập để thực hiện hành động này.");
+  }
+  
   try {
     const updated = await prisma.familyMember.update({
       where: { id: memberId },

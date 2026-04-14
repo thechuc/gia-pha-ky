@@ -70,20 +70,22 @@ function QuickActionMenu({ data }: { data: FamilyNodeData }) {
 
   if (data.isExportMode) return null;
 
-  const isOpen = data.isMenuOpen;
-  const setIsOpen = (val: boolean) => {
-    if (data.onMenuToggle) {
-      data.onMenuToggle(val ? data.member.id : null);
-    }
-  };
-
   const menuItems = [
     { label: "Sửa thông tin", icon: Pen, onClick: data.onEdit, color: "hover:text-blue-600" },
     { label: "Thêm Vợ/Chồng", icon: Heart, onClick: data.onAddSpouse, color: "hover:text-rose-600" },
     { label: "Thêm Con cái", icon: UserPlus, onClick: data.onAddChild, color: "hover:text-emerald-600" },
     { label: "Ẩn khỏi cây", icon: EyeOff, onClick: data.onHide, color: "hover:text-amber-600" },
     { label: "Xóa khỏi gia phả", icon: Trash, onClick: data.onDelete, color: "hover:text-red-400", border: true },
-  ];
+  ].filter(item => typeof item.onClick === 'function' && item.onClick.toString() !== "() => {}");
+
+  if (menuItems.length === 0 || data.isExportMode) return null;
+
+  const isOpen = data.isMenuOpen;
+  const setIsOpen = (val: boolean) => {
+    if (data.onMenuToggle) {
+      data.onMenuToggle(val ? data.member.id : null);
+    }
+  };
 
   return (
     <div className="absolute top-2 right-2 z-[60]" ref={containerRef}>

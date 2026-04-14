@@ -16,13 +16,22 @@ import { Member } from "@/types/member";
 interface MemberListItemProps {
   member: Member;
   index: number;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
   onViewTree: (id: string) => void;
   branchName?: string;
+  canEdit?: boolean;
 }
 
-export function MemberListItem({ member, index, onEdit, onDelete, onViewTree, branchName: propBranchName }: MemberListItemProps) {
+export function MemberListItem({ 
+  member, 
+  index, 
+  onEdit, 
+  onDelete, 
+  onViewTree, 
+  branchName: propBranchName,
+  canEdit = false,
+}: MemberListItemProps) {
   const isMale = member.gender === "MALE";
   const branchName = propBranchName || member.branch?.name || member.branchName;
 
@@ -36,7 +45,7 @@ export function MemberListItem({ member, index, onEdit, onDelete, onViewTree, br
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3, delay: index * 0.02 }}
       className="group flex items-center gap-4 px-5 py-2 bg-white rounded-xl border border-border hover:border-primary/20 hover:shadow-md hover:shadow-primary/5 transition-all cursor-pointer"
-      onClick={() => onEdit(member.id)}
+      onClick={() => onEdit?.(member.id)}
     >
       {/* Avatar */}
       <div
@@ -128,20 +137,24 @@ export function MemberListItem({ member, index, onEdit, onDelete, onViewTree, br
         >
           <Network className="w-3.5 h-3.5" />
         </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onEdit(member.id); }}
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-foreground/20 hover:text-secondary hover:bg-amber-700 transition-all shadow-sm border border-transparent hover:border-secondary/20"
-          title="Chỉnh sửa"
-        >
-          <Edit3 className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(member.id); }}
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-foreground/20 hover:text-white hover:bg-rose-700 transition-all shadow-sm border border-transparent hover:border-white/20"
-          title="Xóa"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        {canEdit && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit?.(member.id); }}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-foreground/20 hover:text-secondary hover:bg-amber-700 transition-all shadow-sm border border-transparent hover:border-secondary/20"
+              title="Chỉnh sửa"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete?.(member.id); }}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-foreground/20 hover:text-white hover:bg-rose-700 transition-all shadow-sm border border-transparent hover:border-white/20"
+              title="Xóa"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
       </div>
 
       <ChevronRight className="w-4 h-4 text-foreground/10 group-hover:text-primary transition-colors shrink-0" />

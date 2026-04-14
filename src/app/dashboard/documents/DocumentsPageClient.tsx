@@ -20,12 +20,16 @@ import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { DOC_TYPE_OPTIONS } from "@/components/dashboard/DashboardConstants";
 import { addDocument, deleteDocument, updateDocument } from "@/app/actions/documents";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface DocumentsPageClientProps {
   initialDocuments: any[];
 }
 
+import { useSession } from "next-auth/react";
+
 export function DocumentsPageContent({ initialDocuments }: DocumentsPageClientProps) {
+  const { canEditDocuments } = useUserPermissions();
   const [documents, setDocuments] = useState(initialDocuments);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
@@ -66,6 +70,13 @@ export function DocumentsPageContent({ initialDocuments }: DocumentsPageClientPr
   }, [searchTerm, selectedType, documents]);
 
   const handleAddDocument = async (data: any) => {
+    // Nếu data đã có ID (nghĩa là đã được tạo từ API trong Modal để hỗ trợ Progress Bar)
+    if (data.id) {
+       setDocuments([data, ...documents]);
+       showToast(`Đã thêm tài liệu: ${data.name}`, "success");
+       return;
+    }
+
     try {
       const newDoc = await addDocument({
         name: data.title,
@@ -126,13 +137,15 @@ export function DocumentsPageContent({ initialDocuments }: DocumentsPageClientPr
   return (
     <div className="flex flex-col h-full overflow-hidden bg-ancient-scroll">
       <DashboardHeader title="Tài Liệu Số">
-        <button 
-          onClick={() => setIsAddModalOpen(true)}
-          className="px-4 py-2 bg-primary text-secondary rounded-xl hover:shadow-lg transition-all flex items-center gap-2 font-bold text-sm border border-secondary"
-        >
-          <Plus className="w-4 h-4" />
-          Đăng tài liệu
-        </button>
+        {canEditDocuments && (
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-4 py-2 bg-primary text-secondary rounded-xl hover:shadow-lg transition-all flex items-center gap-2 font-bold text-sm border border-secondary"
+          >
+            <Plus className="w-4 h-4" />
+            Đăng tài liệu
+          </button>
+        )}
       </DashboardHeader>
 
       <main className="flex-1 overflow-y-auto p-8 space-y-8 relative">
@@ -234,6 +247,7 @@ export function DocumentsPageContent({ initialDocuments }: DocumentsPageClientPr
                   onView={(id) => setSelectedDocId(id)}
                   onEdit={startEdit}
                   onDelete={startDelete}
+                  canEdit={canEditDocuments}
                 />
               ))}
             </div>

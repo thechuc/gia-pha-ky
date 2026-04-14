@@ -28,7 +28,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { getOverviewData, addEvent, addDocument, updateFamilyInfo } from "@/app/actions/family";
+import { useSession } from "next-auth/react";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { getOverviewData, addEvent, updateFamilyInfo } from "@/app/actions/family";
+import { addDocument } from "@/app/actions/documents";
 import { FamilyTimeline } from "./FamilyTimeline";
 import { UpcomingDeathAnniversaries } from "./UpcomingDeathAnniversaries";
 import { FamilyEvent, FamilyDocument, FamilyInfo } from "@/types/family";
@@ -200,6 +203,7 @@ function StatCard({
 // MAIN: Overview Page
 // ════════════════════════════════════════════════════════
 export function OverviewPage({ initialData }: { initialData: any }) {
+  const { canEditFamily, canEditEvents, canEditDocuments } = useUserPermissions();
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [documents, setDocuments] = useState<FamilyDocument[]>([]);
@@ -266,24 +270,24 @@ export function OverviewPage({ initialData }: { initialData: any }) {
   }, [initialData, initialDataProcessed]);
 
   const handleEventAdd = async (newEvent: FamilyEvent) => {
+    if (!canEditEvents) return;
     setEvents(prev => [newEvent, ...prev]);
     await addEvent({ ...newEvent, date: newEvent.isoDate || newEvent.date, icon: newEvent.iconName });
   };
 
   const handleDocAdd = async (newPost: FamilyDocument) => {
+    if (!canEditDocuments) return;
     setDocuments(prev => [newPost, ...prev]);
     await addDocument({
       name: newPost.title,
       type: newPost.type,
       description: newPost.description,
-      url: newPost.url || "/mock-doc-preview.jpg",
-      mimeType: newPost.mimeType || "image/jpeg",
-      size: newPost.size || 0,
+      files: newPost.files || [],
     });
   };
 
   const handleFamilyInfoSave = async (data: any) => {
-    if (!familyInfo?.id) return;
+    if (!familyInfo?.id || !canEditFamily) return;
     await updateFamilyInfo(familyInfo.id, data);
     setFamilyInfo(prev => ({ ...prev, ...data }));
   };
@@ -334,13 +338,15 @@ export function OverviewPage({ initialData }: { initialData: any }) {
                     <Shield className="w-3 h-3" />
                     Di sản trường tồn
                   </div>
-                  <button
-                    onClick={() => setIsEditFamilyModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/5 text-secondary/50 hover:bg-secondary hover:text-primary transition-all duration-200 border border-white/5 cursor-pointer"
-                  >
-                    <PenTool className="w-2.5 h-2.5" />
-                    Chỉnh sửa
-                  </button>
+                  {canEditFamily && (
+                    <button
+                      onClick={() => setIsEditFamilyModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/5 text-secondary/50 hover:bg-secondary hover:text-primary transition-all duration-200 border border-white/5 cursor-pointer"
+                    >
+                      <PenTool className="w-2.5 h-2.5" />
+                      Chỉnh sửa
+                    </button>
+                  )}
                 </div>
 
                 <h1 className="text-4xl md:text-5xl font-serif font-bold text-white tracking-tight leading-tight drop-shadow-lg">
@@ -477,12 +483,14 @@ export function OverviewPage({ initialData }: { initialData: any }) {
                         <BookOpen className="w-7 h-7" />
                       </div>
                       <p className="text-secondary/30 italic text-sm">Chưa có tài liệu nào được lưu trữ</p>
-                      <button
-                        onClick={() => setIsDocModalOpen(true)}
-                        className="text-xs font-bold text-secondary/50 hover:text-secondary transition-colors duration-200 cursor-pointer"
-                      >
-                        + Thêm tài liệu đầu tiên
-                      </button>
+                      {canEditDocuments && (
+                        <button
+                          onClick={() => setIsDocModalOpen(true)}
+                          className="text-xs font-bold text-secondary/50 hover:text-secondary transition-colors duration-200 cursor-pointer"
+                        >
+                          + Thêm tài liệu đầu tiên
+                        </button>
+                      )}
                     </div>
                   ) : (
                     documents.map((doc, index) => (

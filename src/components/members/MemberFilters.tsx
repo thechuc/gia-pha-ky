@@ -35,7 +35,7 @@ interface MemberFiltersProps {
   maxGeneration: number;
   branches: Branch[];
   totalResults: number;
-  onAddClick: () => void;
+  onAddClick?: () => void;
 }
 
 const GENDER_OPTIONS = [
@@ -113,8 +113,9 @@ export function MemberFilters({
         </div>
 
         {/* Add Member Button - Heritage Style */}
-        <button
-          onClick={onAddClick}
+        {onAddClick && (
+          <button
+            onClick={onAddClick}
           className="group relative px-5 py-1.5 bg-[#8B0000] hover:bg-[#A52A2A] text-[#E2D1B0] rounded-xl border border-[#E2D1B0]/30 shadow-md flex items-center gap-2 transition-all duration-300 active:scale-95 cursor-pointer overflow-hidden shrink-0"
         >
           {/* Shimmer sweep effect */}
@@ -124,6 +125,7 @@ export function MemberFilters({
           <Plus className="w-4 h-4 text-secondary" strokeWidth={3} />
           <span className="text-[13px] font-bold uppercase tracking-wider">Thêm mới</span>
         </button>
+        )}
 
         {/* View Mode Toggle */}
         <div className="flex rounded-xl border border-border overflow-hidden bg-white shrink-0 shadow-sm">

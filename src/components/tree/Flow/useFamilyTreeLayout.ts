@@ -24,6 +24,7 @@ export interface TreeMember {
   birthPlace?: string | null;
   residencePlace?: string | null;
   branch?: string | null;
+  branchId?: string | null;
   birthOrder?: number | null;
   lastName?: string | null;
   metadata?: any;
@@ -180,6 +181,7 @@ export function parseMembers(raw: Member[]): TreeMember[] {
       birthOrder: m.birthOrder,
       spouses,
       childIds,
+      branchId: m.branchId,
       lastName: m.lastName,
       metadata: m.metadata,
       __hasNextPage: m.__hasNextPage || false,
@@ -204,6 +206,8 @@ export function useFamilyTreeLayout(
   onAddChild?: (m: TreeMember) => void,
   onHide?: (m: TreeMember) => void,
   onDelete?: (m: TreeMember) => void,
+  checkCanEdit?: (m: TreeMember) => boolean,
+  checkCanAdd?: (branchId?: string) => boolean,
   activeMenuId?: string | null,
   onMenuToggle?: (id: string | null) => void,
   sessionHiddenIds: Set<string> = new Set(),
@@ -475,14 +479,14 @@ export function useFamilyTreeLayout(
           onToggle: () => toggleExpand(d.id),
           isFirstSibling: sInfo?.isFirst ?? true,
           isLastSibling: sInfo?.isLast ?? true,
-          onMoveLeft: onSwapOrder ? () => onSwapOrder(d.id, 'left') : undefined,
-          onMoveRight: onSwapOrder ? () => onSwapOrder(d.id, 'right') : undefined,
+          onMoveLeft: (onSwapOrder && (!checkCanEdit || checkCanEdit(d.member))) ? () => onSwapOrder(d.id, 'left') : undefined,
+          onMoveRight: (onSwapOrder && (!checkCanEdit || checkCanEdit(d.member))) ? () => onSwapOrder(d.id, 'right') : undefined,
           maxWidth: genMaxWidth.get(gen) || d.width,
-          onEdit: onEdit ? () => onEdit(d.member) : undefined,
-          onAddSpouse: onAddSpouse ? () => onAddSpouse(d.member) : undefined,
-          onAddChild: onAddChild ? () => onAddChild(d.member) : undefined,
-          onHide: onHide ? () => onHide(d.member) : undefined,
-          onDelete: onDelete ? () => onDelete(d.member) : undefined,
+          onEdit: (onEdit && (!checkCanEdit || checkCanEdit(d.member))) ? () => onEdit(d.member) : undefined,
+          onAddSpouse: (onAddSpouse && (!checkCanAdd || checkCanAdd(d.member.branchId || undefined))) ? () => onAddSpouse(d.member) : undefined,
+          onAddChild: (onAddChild && (!checkCanAdd || checkCanAdd(d.member.branchId || undefined))) ? () => onAddChild(d.member) : undefined,
+          onHide: (onHide && (!checkCanEdit || checkCanEdit(d.member))) ? () => onHide(d.member) : undefined,
+          onDelete: (onDelete && (!checkCanEdit || checkCanEdit(d.member))) ? () => onDelete(d.member) : undefined,
           isMenuOpen: activeMenuId === d.id,
           onMenuToggle,
           displaySettings,
@@ -522,7 +526,7 @@ export function useFamilyTreeLayout(
   }, [
     rawDbMembers, expandedIds, highlightedEdgesRaw, highlightedNodesRaw, forceExpandAll, 
     onHide, onDelete, activeMenuId, onMenuToggle, sessionHiddenIds, 
-    displaySettings, direction, isExportMode
+    displaySettings, direction, isExportMode, checkCanEdit, checkCanAdd
   ]);
   
   return { nodes, edges, toggleExpand, expandNodes };

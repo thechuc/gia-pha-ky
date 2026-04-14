@@ -16,6 +16,9 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { useSession, signOut as nextSignOut } from "next-auth/react";
+import { ShieldCheck } from "lucide-react";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 // ─── Heritage Crest SVG (decorative inline icon) ─────────────────────────────
 function HeritageCrest({ className }: { className?: string }) {
@@ -38,7 +41,14 @@ const MENU_ITEMS = [
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const { canApprove } = useUserPermissions();
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const menuItems = [...MENU_ITEMS];
+  if (canApprove) {
+    menuItems.push({ name: "Quản trị hệ thống", icon: ShieldCheck, href: "/dashboard/admin/users" });
+  }
 
   return (
     <aside className={`bg-[#0E0808] text-[#F9F5EB] flex flex-col h-full border-r border-secondary/10 shadow-2xl shrink-0 relative transition-all duration-300 ease-in-out ${isCollapsed ? "w-20" : "w-64"}`}>
@@ -84,8 +94,7 @@ export function Sidebar() {
 
       {/* ── Navigation ── */}
       <nav className="flex-1 px-3 py-5 space-y-1 relative z-10 overflow-y-auto custom-scrollbar overflow-x-hidden">
-
-        {MENU_ITEMS.map((item) => {
+        {menuItems.map((item) => {
           const isActive =
             item.href === "/dashboard"
               ? pathname === "/dashboard"
@@ -128,33 +137,83 @@ export function Sidebar() {
 
       {/* ── Bottom Section ── */}
       <div className="px-3 pb-5 pt-4 border-t border-white/5 space-y-1 relative z-10">
-        <button className={`flex items-center gap-3 text-white/40 hover:text-secondary transition-colors duration-200 w-full rounded-xl hover:bg-white/5 cursor-pointer group/btn ${isCollapsed ? "justify-center p-2" : "px-3 py-2.5"}`} title={isCollapsed ? "Cài đặt" : ""}>
-          <div className="shrink-0 w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover/btn:bg-white/8">
-            <Settings className="w-4 h-4" />
-          </div>
-          <span className={`text-sm font-semibold transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"}`}>Cài đặt</span>
-        </button>
+        {session && (
+          <Link 
+            href="/dashboard/settings"
+            className={`flex items-center gap-3 text-white/40 hover:text-secondary transition-colors duration-200 w-full rounded-xl hover:bg-white/5 cursor-pointer group/btn ${isCollapsed ? "justify-center p-2" : "px-3 py-2.5"} ${pathname.startsWith("/dashboard/settings") ? "text-secondary bg-white/5" : ""}`} 
+            title={isCollapsed ? "Cài đặt" : ""}
+          >
+            <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${pathname.startsWith("/dashboard/settings") ? "bg-secondary/20 text-secondary" : "bg-white/5 group-hover/btn:bg-white/8"}`}>
+              <Settings className="w-4 h-4" />
+            </div>
+            <span className={`text-sm font-semibold transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"}`}>Cài đặt</span>
+          </Link>
+        )}
 
-        <button className={`flex items-center gap-3 text-red-500/60 hover:text-red-400 transition-colors duration-200 w-full rounded-xl hover:bg-red-500/5 cursor-pointer group/btn ${isCollapsed ? "justify-center p-2" : "px-3 py-2.5"}`} title={isCollapsed ? "Đăng xuất" : ""}>
-          <div className="shrink-0 w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover/btn:bg-red-500/10">
-            <LogOut className="w-4 h-4" />
-          </div>
-          <span className={`text-sm font-semibold transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"}`}>Đăng xuất</span>
-        </button>
+        {session ? (
+          <>
+            <button 
+              onClick={() => {
+                nextSignOut({ callbackUrl: "/?auth=login" });
+              }}
+              className={`flex items-center gap-3 text-red-500/60 hover:text-red-400 transition-colors duration-200 w-full rounded-xl hover:bg-red-500/5 cursor-pointer group/btn ${isCollapsed ? "justify-center p-2" : "px-3 py-2.5"}`} title={isCollapsed ? "Đăng xuất" : ""}
+            >
+              <div className="shrink-0 w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover/btn:bg-red-500/10">
+                <LogOut className="w-4 h-4" />
+              </div>
+              <span className={`text-sm font-semibold transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"}`}>Đăng xuất</span>
+            </button>
 
-        {/* User card */}
-        <div className={`mt-4 pt-4 border-t border-white/5 flex items-center ${isCollapsed ? "justify-center" : "gap-3 px-2"}`}>
-          <div className="w-9 h-9 rounded-full bg-primary/60 border border-secondary/40 flex items-center justify-center shrink-0">
-            <span className="text-secondary font-bold text-xs">TC</span>
+            {/* User card */}
+            <div className={`mt-4 pt-4 border-t border-white/5 flex items-center ${isCollapsed ? "justify-center" : "gap-3 px-2"}`}>
+              <div className="w-9 h-9 rounded-full bg-primary/60 border border-secondary/40 flex items-center justify-center shrink-0 overflow-hidden">
+                {session?.user?.image ? (
+                  <img src={session.user.image} alt={session.user.name || ""} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-secondary font-bold text-xs">
+                    {session?.user?.name?.[0]?.toUpperCase() || "U"}
+                  </span>
+                )}
+              </div>
+              <div className={`flex-1 min-w-0 transition-all duration-300 overflow-hidden ${isCollapsed ? "w-0 opacity-0 hidden" : "w-auto opacity-100"}`}>
+                <p className="text-xs font-bold text-white/80 truncate">{session?.user?.name || "Người dùng"}</p>
+                <p className="text-[10px] text-secondary/40 truncate">{session?.user?.email || "Chưa có email"}</p>
+              </div>
+              {canApprove && (
+                <div className={`px-2 py-0.5 rounded-full bg-secondary/10 border border-secondary/20 transition-all duration-300 overflow-hidden ${isCollapsed ? "w-0 opacity-0 hidden" : "w-auto opacity-100"}`}>
+                  <span className="text-[8px] font-black text-secondary uppercase tracking-widest">Admin</span>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="space-y-4">
+            <div className={`flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 ${isCollapsed ? "justify-center" : ""}`}>
+              <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary">
+                <Users className="w-4 h-4" />
+              </div>
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white/70">Khách truy cập</p>
+                  <p className="text-[10px] text-secondary/40 uppercase tracking-tighter font-bold">Chế độ chỉ xem</p>
+                </div>
+              )}
+            </div>
+            
+            <Link 
+              href={`${pathname}?auth=login`}
+              className={`flex items-center gap-3 text-secondary hover:text-white transition-all duration-300 w-full rounded-xl bg-secondary/10 border border-secondary/20 hover:bg-secondary/20 group/login ${isCollapsed ? "justify-center p-2" : "px-3 py-3"}`}
+              title={isCollapsed ? "Đăng nhập" : ""}
+            >
+              <div className="shrink-0 w-8 h-8 rounded-lg bg-secondary/20 flex items-center justify-center group-hover/login:scale-110 transition-transform">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <span className={`text-sm font-bold uppercase tracking-widest transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"}`}>
+                Đăng nhập
+              </span>
+            </Link>
           </div>
-          <div className={`flex-1 min-w-0 transition-all duration-300 overflow-hidden ${isCollapsed ? "w-0 opacity-0 hidden" : "w-auto opacity-100"}`}>
-            <p className="text-xs font-bold text-white/80 truncate">Quản trị viên</p>
-            <p className="text-[10px] text-secondary/40 truncate">admin@giaphaky.vn</p>
-          </div>
-          <div className={`px-2 py-0.5 rounded-full bg-secondary/10 border border-secondary/20 transition-all duration-300 overflow-hidden ${isCollapsed ? "w-0 opacity-0 hidden" : "w-auto opacity-100"}`}>
-            <span className="text-[8px] font-black text-secondary uppercase tracking-widest">Pro</span>
-          </div>
-        </div>
+        )}
       </div>
     </aside>
   );
@@ -162,6 +221,7 @@ export function Sidebar() {
 
 // ─── Dashboard Header ─────────────────────────────────────────────────────────
 export function DashboardHeader({ title, children }: { title: string; children?: React.ReactNode }) {
+  const { data: headerSession } = useSession();
   const pathname = usePathname();
 
   // Build breadcrumb segments from pathname
@@ -197,7 +257,14 @@ export function DashboardHeader({ title, children }: { title: string; children?:
             </span>
           ))}
         </nav>
-        <h2 className="text-lg font-serif font-bold text-white/90 leading-tight">{title}</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-serif font-bold text-white/90 leading-tight">{title}</h2>
+          {!headerSession && (
+            <div className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20">
+              <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Chế độ xem</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Right: Actions */}
@@ -210,10 +277,25 @@ export function DashboardHeader({ title, children }: { title: string; children?:
           <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-rose-500 border border-[#0E0808]" />
         </button>
 
-        {/* Avatar */}
-        <div className="w-9 h-9 rounded-full bg-primary/60 border border-secondary/40 flex items-center justify-center cursor-pointer hover:border-secondary/70 transition-colors duration-200">
-          <span className="text-secondary font-bold text-xs">TC</span>
-        </div>
+        {/* User profile / Login */}
+        {headerSession ? (
+          <div className="w-9 h-9 rounded-full bg-primary/60 border border-secondary/40 flex items-center justify-center cursor-pointer hover:border-secondary/70 transition-colors duration-200 overflow-hidden">
+            {headerSession.user?.image ? (
+              <img src={headerSession.user.image} alt={headerSession.user.name || ""} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-secondary font-bold text-xs">
+                {headerSession.user?.name?.[0]?.toUpperCase() || "U"}
+              </span>
+            )}
+          </div>
+        ) : (
+          <Link 
+            href={`${pathname}?auth=login`}
+            className="px-3 py-1.5 rounded-lg bg-secondary/10 border border-secondary/20 text-secondary text-[10px] font-black uppercase tracking-widest hover:bg-secondary/20 transition-all"
+          >
+            Đăng nhập
+          </Link>
+        )}
       </div>
     </header>
   );

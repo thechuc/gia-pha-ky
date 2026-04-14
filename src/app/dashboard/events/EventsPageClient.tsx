@@ -24,6 +24,7 @@ import { AddEventModal } from "@/components/modals/AddEventModal";
 import { EventDetailModal } from "@/components/modals/EventDetailModal";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { FamilyEvent } from "@/types/family";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 import { EVENT_TYPE_OPTIONS } from "@/components/dashboard/DashboardConstants";
 
@@ -32,7 +33,10 @@ interface EventsPageClientProps {
   initialEvents: any[];
 }
 
+import { useSession } from "next-auth/react";
+
 export default function EventsPageClient({ initialAnniversaries, initialEvents }: EventsPageClientProps) {
+  const { canEditEvents } = useUserPermissions();
   const [activeTab, setActiveTab] = useState<"anniversaries" | "events">("anniversaries");
   const [searchTerm, setSearchTerm] = useState("");
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
@@ -41,6 +45,7 @@ export default function EventsPageClient({ initialAnniversaries, initialEvents }
   const [eventToEdit, setEventToEdit] = useState<FamilyEvent | null>(null);
   const [events, setEvents] = useState(initialEvents);
   const [selectedType, setSelectedType] = useState<string>("all");
+
 
   const filteredAnniversaries = initialAnniversaries.filter(item => 
     item.fullName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -170,13 +175,15 @@ export default function EventsPageClient({ initialAnniversaries, initialEvents }
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-gray-50 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
               />
             </div>
-            <button 
-              onClick={() => setIsEventModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-secondary text-sm font-bold hover:shadow-lg transition-all active:scale-95 shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              Thêm sự kiện
-            </button>
+            {canEditEvents && (
+              <button 
+                onClick={() => setIsEventModalOpen(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-secondary text-sm font-bold hover:shadow-lg transition-all active:scale-95 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                Thêm sự kiện
+              </button>
+            )}
           </div>
         </div>
 
@@ -242,8 +249,8 @@ export default function EventsPageClient({ initialAnniversaries, initialEvents }
               <FamilyTimeline 
                 events={filteredEvents as any} 
                 onEventClick={(e) => setSelectedEvent(e as FamilyEvent)}
-                onDeleteClick={(id) => setEventToDelete(id)}
-                onEditClick={(e) => handleEditClick(e as FamilyEvent)}
+                onDeleteClick={!canEditEvents ? undefined : (id) => setEventToDelete(id)}
+                onEditClick={!canEditEvents ? undefined : (e) => handleEditClick(e as FamilyEvent)}
               />
               
               {filteredEvents.length === 0 && (

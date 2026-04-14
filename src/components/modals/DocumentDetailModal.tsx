@@ -105,12 +105,29 @@ export function DocumentDetailModal({ doc, onClose }: { doc: FamilyDocument | nu
     return list;
   }, [doc, docName]);
 
+  const isDriveUrl = (url: string | null) => url?.includes('drive.google.com');
+  const extractDriveId = (url: string | null): string | null => {
+    if (!url) return null;
+    const match = url.match(/\/d\/([^/]+)\//) || url.match(/id=([^&]+)/);
+    return match ? match[1] : null;
+  };
+
   const activeFile = fileList[currentFileIndex];
 
   const handleDownload = async (e: React.MouseEvent, fileToDownload = activeFile) => {
     e.preventDefault();
     if (!fileToDownload || !fileToDownload.url) return;
     
+    // If it's a Drive URL, use the direct download link
+    if (isDriveUrl(fileToDownload.url)) {
+      const driveId = extractDriveId(fileToDownload.url);
+      if (driveId) {
+        const downloadUrl = `https://drive.google.com/uc?export=download&id=${driveId}`;
+        window.open(downloadUrl, '_blank');
+        return;
+      }
+    }
+
     const urlParts = fileToDownload.url.split('?')[0].split('.');
     const urlExt = urlParts.length > 1 ? urlParts.pop() : null;
     const extension = MIME_TO_EXT[fileToDownload.mimeType || ""] || urlExt || fileToDownload.mimeType?.split('/').pop() || 'dat';
@@ -156,13 +173,22 @@ export function DocumentDetailModal({ doc, onClose }: { doc: FamilyDocument | nu
     setIsLoading(true);
     setZoom(1);
     setRotation(0);
+    
     if (typeof window !== "undefined") {
       setIsLocal(
         window.location.hostname === "localhost" || 
         window.location.hostname === "127.0.0.1"
       );
     }
-  }, [currentFileIndex]);
+
+    // CƠ CHẾ AN TOÀN: Bắt buộc tắt loading sau 4 giây
+    const timer = setTimeout(() => {
+      console.log("[Viewer] Safety trigger: Hiding loader after timeout");
+      setIsLoading(false);
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [currentFileIndex, doc?.id]); 
 
   if (!doc || !activeFile) return null;
 
@@ -186,6 +212,54 @@ export function DocumentDetailModal({ doc, onClose }: { doc: FamilyDocument | nu
       </div>
     );
 
+    // 1. Phân loại loại tệp dựa trên MIME type hoặc phần mở rộng
+    const isVideo = activeFile.mimeType?.startsWith("video/") || 
+                    activeFile.url.toLowerCase().endsWith('.mp4') || 
+                    activeFile.url.toLowerCase().endsWith('.mov') ||
+                    activeFile.url.toLowerCase().endsWith('.webm');
+
+    // 2. Xử lý hiển thị Video (Ưu tiên dùng thẻ video bản địa cho trải nghiệm tốt nhất)
+    if (isVideo) {
+      const streamUrl = isDriveUrl(activeFile.url) 
+        ? `/api/documents/stream/${extractDriveId(activeFile.url)}`
+        : activeFile.url;
+
+      return (
+        <video 
+          key={streamUrl}
+          src={streamUrl} 
+          controls 
+          playsInline
+          preload="metadata"
+          className="w-full h-full rounded-2xl bg-black shadow-2xl"
+          onLoadStart={() => setIsLoading(true)}
+          onCanPlay={() => setIsLoading(false)}
+          onError={(e) => {
+             console.error("Video Playback Error:", e);
+             setIsLoading(false);
+          }}
+        />
+      );
+    }
+
+    // 3. Xử lý hiển thị tệp từ Google Drive (Cho các tệp KHÔNG phải Video)
+    if (isDriveUrl(activeFile.url)) {
+      const driveId = extractDriveId(activeFile.url);
+      if (driveId) {
+        return (
+          <div className="w-full h-full bg-[#050505] rounded-2xl overflow-hidden relative">
+            <iframe 
+              src={`https://drive.google.com/file/d/${driveId}/preview`} 
+              className="w-full h-full border-none"
+              allow="autoplay"
+              onLoad={() => setIsLoading(false)}
+            />
+          </div>
+        );
+      }
+    }
+
+    // 4. Xử lý hiển thị Hình ảnh
     if (isImage) {
       return (
         <LegacyImageViewer 
@@ -197,21 +271,6 @@ export function DocumentDetailModal({ doc, onClose }: { doc: FamilyDocument | nu
           onPrev={() => setCurrentFileIndex(prev => Math.max(0, prev - 1))}
           isFullscreen={fullscreen}
           onToggleFullscreen={toggleFullscreen}
-        />
-      );
-    }
-
-    if (activeFile.mimeType?.startsWith("video/") || activeFile.url.toLowerCase().endsWith('.mp4') || activeFile.url.toLowerCase().endsWith('.mov')) {
-      return (
-        <video 
-          key={activeFile.url}
-          src={activeFile.url} 
-          controls 
-          playsInline
-          preload="metadata"
-          className="w-full h-full rounded-2xl bg-black shadow-2xl"
-          onLoadStart={() => setIsLoading(true)}
-          onCanPlay={() => setIsLoading(false)}
         />
       );
     }

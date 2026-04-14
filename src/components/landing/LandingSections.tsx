@@ -2,7 +2,7 @@ import { ArrowRight, TreeDeciduous, Scroll, CalendarDays, ShieldCheck } from "lu
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
-export function Navbar() {
+export function Navbar({ isPublic }: { isPublic?: boolean }) {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border transition-all">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -17,16 +17,15 @@ export function Navbar() {
           <div className="hidden md:flex items-center gap-8">
             <Link href="#features" className="hover:text-primary transition-colors">Tính năng</Link>
             <Link href="#about" className="hover:text-primary transition-colors">Câu chuyện</Link>
-            <Link href="#pricing" className="hover:text-primary transition-colors">Gói dịch vụ</Link>
           </div>
           
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <Link 
-              href="/login" 
+              href={isPublic ? "/dashboard" : "/?auth=login"} 
               className="px-6 py-2.5 bg-primary text-secondary rounded-full border border-secondary hover:bg-primary/90 transition-all shadow-md font-bold"
             >
-              Bắt đầu ngay
+              {isPublic ? "Vào Dashboard" : "Bắt đầu ngay"}
             </Link>
           </div>
         </div>
@@ -37,7 +36,7 @@ export function Navbar() {
 
 
 
-export function Hero() {
+export function Hero({ isPublic, coverImage }: { isPublic?: boolean; coverImage?: string }) {
   return (
     <section className="relative pt-40 pb-24 overflow-hidden bg-background">
       {/* Dynamic background gradients */}
@@ -65,17 +64,11 @@ export function Hero() {
           
           <div className="flex flex-col sm:flex-row gap-5 w-full sm:w-auto">
             <Link 
-              href="/dashboard" 
-              className="px-10 py-5 bg-primary text-white rounded-full font-bold text-lg flex items-center justify-center gap-3 hover:shadow-[0_20px_50px_rgba(225,29,72,0.3)] hover:-translate-y-1 transition-all duration-300"
+              href={isPublic ? "/dashboard" : "/dashboard?auth=login"} 
+              className="px-12 py-5 bg-primary text-white rounded-full font-bold text-lg flex items-center justify-center gap-3 hover:shadow-[0_20px_50px_rgba(225,29,72,0.3)] hover:-translate-y-1 transition-all duration-300 group"
             >
-              Lập gia phả ngay
+              {isPublic ? "Vào xem phả hệ" : "Bắt đầu lập gia phả"}
               <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-            </Link>
-            <Link 
-              href="#demo" 
-              className="px-10 py-5 bg-card text-foreground rounded-full font-bold text-lg border border-border hover:bg-accent transition-all text-center shadow-sm"
-            >
-              Xem bản mẫu
             </Link>
           </div>
         </div>
@@ -85,14 +78,22 @@ export function Hero() {
           <div className="aspect-[4/3] relative flex items-center justify-center">
             <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-secondary/10 rounded-[2.5rem] blur-2xl group-hover:scale-110 transition-transform duration-700" />
             <div className="w-full h-full border border-border bg-card/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden relative z-10 p-4 shadow-2xl transition-all duration-500 group-hover:shadow-primary/5">
-               <div className="w-full h-full bg-gradient-to-br from-background to-accent/20 rounded-[1.8rem] border border-border/50 flex flex-col items-center justify-center gap-6 relative overflow-hidden group">
+                <div className="w-full h-full bg-gradient-to-br from-background to-accent/20 rounded-[1.8rem] border border-border/50 flex flex-col items-center justify-center gap-6 relative overflow-hidden group">
                   <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#e11d48_1px,transparent_1px)] [background-size:20px_20px]" />
-                  <TreeDeciduous className="w-32 h-32 text-primary opacity-20 group-hover:scale-110 transition-transform duration-700" />
-                  <div className="text-center z-10">
+                  {coverImage ? (
+                    <img 
+                      src={coverImage} 
+                      alt="Ảnh dòng tộc" 
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+                  ) : (
+                    <TreeDeciduous className="w-32 h-32 text-primary opacity-20 group-hover:scale-110 transition-transform duration-700" />
+                  )}
+                  <div className={`text-center z-10 ${coverImage ? 'bg-black/40 backdrop-blur-sm p-4 rounded-xl border border-white/10' : ''}`}>
                      <span className="block text-primary/60 font-serif italic text-2xl mb-1">Gia Phả Ký</span>
-                     <span className="block text-foreground/40 text-sm font-bold uppercase tracking-[0.3em]">Di Sản Kỹ Thuật Số</span>
+                     <span className="block text-white/40 text-sm font-bold uppercase tracking-[0.3em]">Di Sản Kỹ Thuật Số</span>
                   </div>
-               </div>
+                </div>
             </div>
             
             {/* Floating high-end elements */}

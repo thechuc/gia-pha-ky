@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { Role } from "@prisma/client";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import {
   getMembers,
   getMemberStats,
@@ -47,6 +49,7 @@ interface Stats {
 
 export function MembersPage() {
   const router = useRouter();
+  const { canEditGlobal, userRoles } = useUserPermissions();
 
   // Data state
   const [allMembers, setAllMembers] = useState<Member[]>([]);
@@ -149,6 +152,22 @@ export function MembersPage() {
 
     return result;
   }, [allMembers, filters]);
+
+  // ─── Permission Checks ───
+  const checkCanEdit = useCallback((member: Member) => {
+    if (canEditGlobal) return true;
+    return userRoles.some((r: any) => {
+      if (r.role === Role.BRANCH_MANAGER && r.branchId === member.branchId) return true;
+      if (r.role === Role.MEMBER && r.branchId === member.branchId) return true;
+      return false;
+    });
+  }, [canEditGlobal, userRoles]);
+
+  const canAddGlobally = useMemo(() => {
+    return canEditGlobal || userRoles.some((r: any) => 
+      r.role === Role.BRANCH_MANAGER || r.role === Role.MEMBER
+    );
+  }, [canEditGlobal, userRoles]);
 
   // ─── Handlers ───
   const handleAddMember = async (data: any) => {
@@ -287,7 +306,7 @@ export function MembersPage() {
                 <MemberFilters
                   filters={filters} onFiltersChange={setFilters} viewMode={viewMode} onViewModeChange={setViewMode}
                   maxGeneration={stats?.maxGeneration || 11} branches={branches} totalResults={filteredMembers.length}
-                  onAddClick={() => setIsAddModalOpen(true)}
+                  onAddClick={canAddGlobally ? () => setIsAddModalOpen(true) : undefined}
                 />
               </div>
             </div>
@@ -348,9 +367,12 @@ export function MembersPage() {
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                 {members.map((member, index) => (
                                   <MemberCard
-                                    key={member.id} member={member} index={index} onEdit={handleEditClick}
-                                    onDelete={handleDeleteClick} onViewTree={handleViewTree}
+                                    key={member.id} member={member} index={index} 
+                                    onEdit={handleEditClick}
+                                    onDelete={handleDeleteClick} 
+                                    onViewTree={handleViewTree}
                                     branchName={branchName}
+                                    canEdit={checkCanEdit(member)}
                                   />
                                 ))}
                               </div>
@@ -409,9 +431,12 @@ export function MembersPage() {
                               <div className="space-y-2">
                                 {members.map((member, index) => (
                                   <MemberListItem
-                                    key={member.id} member={member} index={index} onEdit={handleEditClick}
-                                    onDelete={handleDeleteClick} onViewTree={handleViewTree}
+                                    key={member.id} member={member} index={index} 
+                                    onEdit={handleEditClick}
+                                    onDelete={handleDeleteClick} 
+                                    onViewTree={handleViewTree}
                                     branchName={branchName}
+                                    canEdit={checkCanEdit(member)}
                                   />
                                 ))}
                               </div>

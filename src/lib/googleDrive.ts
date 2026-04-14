@@ -111,6 +111,7 @@ export async function uploadToDrive(
     return {
       id: fileId,
       webViewLink: response.data.webViewLink,
+      directLink: `https://lh3.googleusercontent.com/d/${fileId}`,
     };
   } catch (error) {
     console.error('Error uploading to Google Drive via OAuth:', error);

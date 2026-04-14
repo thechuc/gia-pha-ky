@@ -104,6 +104,10 @@ export interface NewSpouseData {
   lastName: string;
   gender: Gender;
   dateOfBirth?: string;
+  birthDay?: number;
+  birthMonth?: number;
+  birthYear?: number;
+  isBirthDateLunar?: boolean;
   birthPlace?: string;
 }
 

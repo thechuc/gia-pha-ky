@@ -4,6 +4,17 @@ import prisma from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import type { Gender, RelationshipType, EventType } from '@prisma/client';
 import { OverviewData } from '@/types/family';
+import { canEditEvents, canEditDocuments, canEditFamily } from '@/utils/permissions';
+import { uploadToDrive, deleteFromDrive } from '@/lib/googleDrive';
+
+/**
+ * Extracts the file ID from a Google Drive webViewLink
+ */
+function extractDriveId(url: string | null): string | null {
+  if (!url || !url.includes('drive.google.com')) return null;
+  const match = url.match(/\/d\/([^/]+)\//);
+  return match ? match[1] : null;
+}
 
 export async function getOverviewData(): Promise<OverviewData | null> {
   const family = await prisma.family.findFirst({
@@ -51,21 +62,48 @@ export async function getOverviewData(): Promise<OverviewData | null> {
 }
 
 export async function addEvent(formData: any) {
+  if (!await canEditEvents()) {
+    throw new Error('Bạn không có quyền thêm sự kiện.');
+  }
   const family = await prisma.family.findFirst();
   if (!family) throw new Error('Family not found');
+
+  const processedMedia: any[] = [];
+  if (formData.media && Array.isArray(formData.media)) {
+    for (const file of formData.media) {
+      if (file.url && file.url.startsWith('data:')) {
+        try {
+          const base64Data = file.url.split(';base64,').pop();
+          if (base64Data) {
+            const buffer = Buffer.from(base64Data, 'base64');
+            const driveResult = await uploadToDrive(buffer, file.name || `event-${Date.now()}`, file.type || 'image/jpeg');
+            processedMedia.push({
+              id: driveResult.id,
+              url: driveResult.webViewLink,
+              name: file.name,
+              type: file.type
+            });
+          }
+        } catch (error) {
+          console.error('Error uploading event media to Drive:', error);
+        }
+      } else {
+        processedMedia.push(file);
+      }
+    }
+  }
 
   const event = await prisma.event.create({
     data: {
       familyId: family.id,
-      memberId: formData.memberId || (await prisma.familyMember.findFirst())?.id || '', // Fallback to first member
+      memberId: formData.memberId || (await prisma.familyMember.findFirst())?.id || '',
       title: formData.title,
       description: formData.description,
-      // Parse ISO string safely. Example: "2026-03-31" -> valid Date
       eventDate: formData.date ? new Date(formData.date) : null,
       era: formData.era,
       icon: formData.icon,
       type: 'CUSTOM' as EventType,
-      media: formData.media ? JSON.stringify(formData.media) : null,
+      media: JSON.stringify(processedMedia),
     },
   });
 
@@ -73,32 +111,10 @@ export async function addEvent(formData: any) {
   return event;
 }
 
-export async function addDocument(formData: any) {
-  const family = await prisma.family.findFirst();
-  if (!family) throw new Error('Family not found');
-
-  const doc = await prisma.document.create({
-    data: {
-      familyId: family.id,
-      name: formData.title,
-      url: formData.fileUrl || '/files/placeholder.pdf',
-      mimeType: formData.mimeType || 'application/pdf',
-      size: formData.size || 0,
-      type: formData.type,
-      description: formData.description,
-      uploadedBy: 'Admin',
-    },
-  });
-
-  revalidatePath('/dashboard');
-  return doc;
-}
-
-// /**
-//  * Temporary action to seed the database if it's empty.
-//  * Triggered once to populate the 11 generations.
-//  */
 export async function updateFamilyInfo(id: string, data: { name: string, motto: string, description: string, origin: string }) {
+  if (!await canEditFamily()) {
+    throw new Error('Bạn không có quyền chỉnh sửa thông tin dòng họ.');
+  }
   const family = await prisma.family.update({
     where: { id },
     data: {
@@ -114,9 +130,54 @@ export async function updateFamilyInfo(id: string, data: { name: string, motto: 
 }
 
 export async function updateEvent(id: string, data: any) {
+  if (!await canEditEvents()) {
+    throw new Error('Bạn không có quyền chỉnh sửa sự kiện.');
+  }
+  
+  const oldEvent = await prisma.event.findUnique({ where: { id } });
+  if (!oldEvent) throw new Error('Event not found');
+
+  const oldMedia = oldEvent.media ? JSON.parse(oldEvent.media) : [];
+  const processedMedia: any[] = [];
+  
+  if (data.media && Array.isArray(data.media)) {
+    const currentUrls = new Set(data.media.map((m: any) => m.url));
+    
+    // Delete removed files from Drive
+    for (const oldFile of oldMedia) {
+      if (!currentUrls.has(oldFile.url)) {
+        const driveId = oldFile.id || extractDriveId(oldFile.url);
+        if (driveId) await deleteFromDrive(driveId);
+      }
+    }
+
+    // Process new files
+    for (const file of data.media) {
+      if (file.url && file.url.startsWith('data:')) {
+        try {
+          const base64Data = file.url.split(';base64,').pop();
+          if (base64Data) {
+            const buffer = Buffer.from(base64Data, 'base64');
+            const driveResult = await uploadToDrive(buffer, file.name || `event-${Date.now()}`, file.type || 'image/jpeg');
+            processedMedia.push({
+              id: driveResult.id,
+              url: driveResult.webViewLink,
+              name: file.name,
+              type: file.type
+            });
+          }
+        } catch (error) {
+          console.error('Error updating event media on Drive:', error);
+        }
+      } else {
+        processedMedia.push(file);
+      }
+    }
+  }
+
   const updateData: any = { ...data };
   if (data.media) {
-    updateData.media = JSON.stringify(data.media);
+    updateData.media = JSON.stringify(processedMedia);
   }
   if (data.date) {
     updateData.eventDate = new Date(data.date);
@@ -137,9 +198,26 @@ export async function updateEvent(id: string, data: any) {
 }
 
 export async function deleteEvent(id: string) {
-  await prisma.event.delete({
-    where: { id }
-  });
+  if (!await canEditEvents()) {
+    throw new Error('Bạn không có quyền xóa sự kiện.');
+  }
+
+  const event = await prisma.event.findUnique({ where: { id } });
+  if (event?.media) {
+    const media = JSON.parse(event.media);
+    for (const file of media) {
+      const driveId = file.id || extractDriveId(file.url);
+      if (driveId) {
+        try {
+          await deleteFromDrive(driveId);
+        } catch (err) {
+          console.error('Error deleting event media from Drive:', err);
+        }
+      }
+    }
+  }
+
+  await prisma.event.delete({ where: { id } });
 
   revalidatePath('/dashboard');
   return { success: true };

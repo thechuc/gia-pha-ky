@@ -13,6 +13,7 @@ import {
   Trash2,
   AlertCircle
 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 import { initializeHeritage, clearAllData } from "@/app/actions/family_setup";
 
 interface CreateHeritageModalProps {
@@ -22,6 +23,7 @@ interface CreateHeritageModalProps {
 }
 
 export function CreateHeritageModal({ isOpen, onClose, onSuccess }: CreateHeritageModalProps) {
+  const { showToast } = useToast();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -46,11 +48,11 @@ export function CreateHeritageModal({ isOpen, onClose, onSuccess }: CreateHerita
     setIsClearing(true);
     try {
       await clearAllData();
-      alert("Đã xóa toàn bộ dữ liệu thành công.");
+      showToast("Đã xóa toàn bộ dữ liệu thành công.", "success");
       setShowClearConfirm(false);
       window.location.reload();
     } catch (error) {
-      alert("Lỗi khi xóa dữ liệu.");
+      showToast("Lỗi khi xóa dữ liệu.", "error");
     } finally {
       setIsClearing(false);
     }
@@ -81,10 +83,11 @@ export function CreateHeritageModal({ isOpen, onClose, onSuccess }: CreateHerita
       };
 
       await initializeHeritage(familyData, ancestorData);
+      showToast("Đã khởi tạo di sản dòng tộc thành công!", "success");
       onSuccess();
       onClose();
     } catch (error) {
-      alert("Lỗi khi khởi tạo di sản.");
+      showToast("Lỗi khi khởi tạo di sản.", "error");
     } finally {
       setIsSubmitting(false);
     }

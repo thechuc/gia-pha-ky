@@ -4,8 +4,18 @@ import prisma from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { Prisma, type Gender, type RelationshipType } from '@prisma/client';
 import { Member, Branch, MemberStats, SimpleMember, MemberFilters, MemberFormData, NewSpouseData } from '@/types/member';
+import { canAddMember, canEditMember } from '@/utils/permissions';
+import { uploadToDrive, deleteFromDrive } from '@/lib/googleDrive';
 
-
+/**
+ * Extracts the file ID from a Google Drive webViewLink
+ */
+function extractDriveId(url: string | null): string | null {
+  if (!url || !url.includes('drive.google.com')) return null;
+  // Standard webViewLink format: https://drive.google.com/file/d/[ID]/view?usp=drivesdk
+  const match = url.match(/\/d\/([^/]+)\//);
+  return match ? match[1] : null;
+}
 
 // ─── Queries ───
 
@@ -124,6 +134,27 @@ export async function addMember(data: MemberFormData) {
   const family = await prisma.family.findFirst();
   if (!family) throw new Error('Family not found');
 
+  // Check permission
+  if (!await canAddMember(data.branchId || undefined)) {
+    throw new Error('Bạn không có quyền thêm thành viên vào Chi/Nhánh này.');
+  }
+
+  let avatarUrl = data.avatar || null;
+  
+  // Handle Avatar upload to Google Drive
+  if (avatarUrl && avatarUrl.startsWith('data:')) {
+    try {
+      const base64Data = avatarUrl.split(';base64,').pop();
+      if (base64Data) {
+        const buffer = Buffer.from(base64Data, 'base64');
+        const driveResult = await uploadToDrive(buffer, `avatar-${Date.now()}`, 'image/jpeg');
+        avatarUrl = driveResult.webViewLink || null;
+      }
+    } catch (error) {
+      console.error('Error uploading avatar to Drive:', error);
+    }
+  }
+
   const fullName = `${data.lastName} ${data.firstName}`.trim();
 
   // ── Auto-calculate generation from parents ──
@@ -180,7 +211,7 @@ export async function addMember(data: MemberFormData) {
       birthPlace: data.birthPlace || null,
       currentLocation: data.currentLocation || null,
       biography: data.biography || null,
-      avatar: data.avatar || null,
+      avatar: avatarUrl,
       generation,
       birthOrder: data.birthOrder || 0,
       honorific: data.honorific || null,
@@ -190,7 +221,7 @@ export async function addMember(data: MemberFormData) {
     },
   });
 
-  // ── Parent relationships (granular: father + mother separately) ──
+  // ── Relationships ──
   if (data.fatherId) {
     await prisma.relationship.create({
       data: { familyId: family.id, sourceMemberId: data.fatherId, targetMemberId: member.id, type: 'PARENT_CHILD' },
@@ -201,8 +232,6 @@ export async function addMember(data: MemberFormData) {
       data: { familyId: family.id, sourceMemberId: data.motherId, targetMemberId: member.id, type: 'PARENT_CHILD' },
     });
   }
-
-  // ── Spouse: link to existing member ──
   if (data.spouseId) {
     await prisma.relationship.create({
       data: { familyId: family.id, sourceMemberId: data.spouseId, targetMemberId: member.id, type: 'SPOUSE' },
@@ -231,36 +260,29 @@ export async function addMember(data: MemberFormData) {
     });
   }
 
-  // ── Legacy single relationship (backward compat) ──
-  if (!data.fatherId && !data.motherId && !data.spouseId && !data.newSpouse) {
-    if (data.relationshipType && data.relatedMemberId) {
-      await prisma.relationship.create({
-        data: {
-          familyId: family.id,
-          sourceMemberId: data.relatedMemberId,
-          targetMemberId: member.id,
-          type: data.relationshipType,
-        },
-      });
-    }
-  }
-
   revalidatePath('/dashboard/members');
   revalidatePath('/dashboard');
   return member;
 }
 
 export async function updateMember(id: string, data: Partial<MemberFormData>) {
+  if (!await canEditMember(id)) {
+    throw new Error('Bạn không có quyền chỉnh sửa thành viên này.');
+  }
+
+  const currentMember = await prisma.familyMember.findUnique({ where: { id } });
+  if (!currentMember) throw new Error('Member not found');
+
   const updateData: Prisma.FamilyMemberUpdateInput = {};
 
   if (data.firstName !== undefined) updateData.firstName = data.firstName;
   if (data.lastName !== undefined) updateData.lastName = data.lastName;
   if (data.firstName !== undefined || data.lastName !== undefined) {
-    const member = await prisma.familyMember.findUnique({ where: { id } });
-    const fn = data.firstName ?? member?.firstName ?? '';
-    const ln = data.lastName ?? member?.lastName ?? '';
+    const fn = data.firstName ?? currentMember.firstName;
+    const ln = data.lastName ?? currentMember.lastName;
     updateData.fullName = `${ln} ${fn}`.trim();
   }
+  
   if (data.gender !== undefined) updateData.gender = data.gender;
   if (data.dateOfBirth !== undefined) {
     updateData.dateOfBirth = data.dateOfBirth && !isNaN(new Date(data.dateOfBirth).getTime()) ? new Date(data.dateOfBirth) : null;
@@ -279,11 +301,41 @@ export async function updateMember(id: string, data: Partial<MemberFormData>) {
   if (data.isDeathDateLunar !== undefined) updateData.isDeathDateLunar = data.isDeathDateLunar;
 
   if (data.isAlive !== undefined) updateData.isAlive = data.isAlive;
+  
+  // Handle Avatar Change on GDrive
+  if (data.avatar !== undefined) {
+    let newAvatarUrl = data.avatar || null;
+    
+    // If it's a new base64 upload
+    if (newAvatarUrl && newAvatarUrl.startsWith('data:')) {
+      try {
+        // Delete old avatar from Drive if exists
+        const oldDriveId = extractDriveId(currentMember.avatar);
+        if (oldDriveId) await deleteFromDrive(oldDriveId);
+
+        const base64Data = newAvatarUrl.split(';base64,').pop();
+        if (base64Data) {
+          const buffer = Buffer.from(base64Data, 'base64');
+          const driveResult = await uploadToDrive(buffer, `avatar-${Date.now()}`, 'image/jpeg');
+          newAvatarUrl = driveResult.webViewLink || null;
+        }
+      } catch (error) {
+        console.error('Error updating member avatar on Drive:', error);
+      }
+    } 
+    // If avatar removed
+    else if (newAvatarUrl === null && currentMember.avatar) {
+      const oldDriveId = extractDriveId(currentMember.avatar);
+      if (oldDriveId) await deleteFromDrive(oldDriveId);
+    }
+    
+    updateData.avatar = newAvatarUrl;
+  }
+
   if (data.occupation !== undefined) updateData.occupation = data.occupation || null;
   if (data.birthPlace !== undefined) updateData.birthPlace = data.birthPlace || null;
   if (data.currentLocation !== undefined) updateData.currentLocation = data.currentLocation || null;
   if (data.biography !== undefined) updateData.biography = data.biography || null;
-  if (data.avatar !== undefined) updateData.avatar = data.avatar || null;
   if (data.generation !== undefined) updateData.generation = data.generation;
   if (data.birthOrder !== undefined) updateData.birthOrder = data.birthOrder;
   if (data.honorific !== undefined) updateData.honorific = data.honorific || null;
@@ -311,13 +363,6 @@ export async function updateMember(id: string, data: Partial<MemberFormData>) {
     updateData.branch = data.branchId ? { connect: { id: data.branchId } } : { disconnect: true };
   }
 
-  // Check if it's a mock ID (like v1-1, m2-1, etc.)
-  // Real Prisma CUIDs or UUIDs are long. Mock IDs are short and often have dashes like v1-1.
-  if (id.length < 15) {
-    console.warn(`Simulating update for mock ID: ${id}`);
-    return { id, ...updateData } as any;
-  }
-
   const updated = await prisma.familyMember.update({
     where: { id },
     data: updateData,
@@ -329,7 +374,18 @@ export async function updateMember(id: string, data: Partial<MemberFormData>) {
 }
 
 export async function deleteMember(id: string) {
-  // Prisma schema has onDelete: Cascade for relationships
+  if (!await canEditMember(id)) {
+    throw new Error('Bạn không có quyền xóa thành viên này.');
+  }
+
+  const member = await prisma.familyMember.findUnique({ where: { id } });
+  
+  // Cleanup avatar from Drive
+  if (member?.avatar) {
+    const driveId = extractDriveId(member.avatar);
+    if (driveId) await deleteFromDrive(driveId);
+  }
+
   await prisma.familyMember.delete({ where: { id } });
 
   revalidatePath('/dashboard/members');
@@ -345,6 +401,11 @@ export async function addMemberRelationship(
   type: RelationshipType,
   role: 'source' | 'target' = 'target'
 ) {
+  // Check permission
+  if (!await canEditMember(memberId)) {
+    throw new Error('Bạn không có quyền chỉnh sửa thành viên này.');
+  }
+
   const family = await prisma.family.findFirst();
   if (!family) throw new Error('Family not found');
 
@@ -374,6 +435,15 @@ export async function addMemberRelationship(
 }
 
 export async function removeRelationship(relationshipId: string) {
+  const rel = await prisma.relationship.findUnique({
+    where: { id: relationshipId },
+    select: { sourceMemberId: true, targetMemberId: true }
+  });
+  
+  if (rel && (!await canEditMember(rel.sourceMemberId) && !await canEditMember(rel.targetMemberId))) {
+    throw new Error('Bạn không có quyền chỉnh sửa mối quan hệ này.');
+  }
+
   await prisma.relationship.delete({ where: { id: relationshipId } });
   revalidatePath('/dashboard/members');
   revalidatePath('/dashboard/tree');
@@ -381,6 +451,11 @@ export async function removeRelationship(relationshipId: string) {
 }
 
 export async function addNewSpouseAndLink(memberId: string, spouseData: NewSpouseData) {
+  // Check permission
+  if (!await canEditMember(memberId)) {
+    throw new Error('Bạn không có quyền chỉnh sửa thành viên này.');
+  }
+
   const family = await prisma.family.findFirst();
   if (!family) throw new Error('Family not found');
 
@@ -424,6 +499,11 @@ export async function addNewSpouseAndLink(memberId: string, spouseData: NewSpous
 // ─── Sibling Reorder ─────────────────────────────────────────────────────────
 
 export async function swapSiblingOrder(memberId: string, direction: 'left' | 'right') {
+  // Check permission
+  if (!await canEditMember(memberId)) {
+    throw new Error('Bạn không có quyền chỉnh sửa thành viên này.');
+  }
+
   // 1. Find the father (PARENT_CHILD where target = this member, source = MALE)
   const parentRel = await prisma.relationship.findFirst({
     where: {

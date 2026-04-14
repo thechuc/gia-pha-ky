@@ -163,7 +163,7 @@ export function PersonDetailsModal({ member, onClose, onAddSpouse, onAddChild }:
                   onClick={() => onAddSpouse(member)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-rose-200"
                  >
-                   <Heart className="w-3 h-3" /> Thêm Vợ/Chồng
+                   <Heart className="w-3 h-3" /> Thêm Vợ
                  </button>
                )}
              </div>

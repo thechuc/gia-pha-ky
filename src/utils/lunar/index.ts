@@ -38,8 +38,8 @@ export function getAnniversaryFromFlexibleFields(
 
   // If input is Solar, convert to Lunar first to get the fixed anniversary day/month
   const sDate = year 
-    ? Solar.fromYmd(year, month, day)
-    : Solar.fromYmd(new Date().getFullYear(), month, day); 
+    ? Solar.fromDate(new Date(year, month - 1, day))
+    : Solar.fromDate(new Date(new Date().getFullYear(), month - 1, day)); 
   const lunar = sDate.getLunar();
   
   return calculateUpcomingAnniversary(

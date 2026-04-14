@@ -167,7 +167,7 @@ export function EditMemberModal({
   const [spouseSearch, setSpouseSearch] = useState("");
   const [newSpouseId, setNewSpouseId] = useState("");
   const [newSpouseForm, setNewSpouseForm] = useState<NewSpouseForm>({
-    firstName: "", lastName: "", gender: "FEMALE", dateOfBirth: "", birthPlace: "",
+    firstName: "", lastName: "", gender: "FEMALE", dateOfBirth: "", birthPlace: "", isBirthDateLunar: false,
   });
 
   // ── Derived ──
@@ -684,7 +684,7 @@ export function EditMemberModal({
                           <p className="text-[11px] text-white/30 italic">
                             {spouseSearch ? `Không tìm thấy "${spouseSearch}"` : `Chưa có ${gender === "MALE" ? "thành viên nữ" : "thành viên nam"} phù hợp`}
                           </p>
-                          <button type="button" onClick={() => { setSpouseMode("create"); setNewSpouseForm(p => ({ ...p, firstName: spouseSearch, gender: gender === "MALE" ? "FEMALE" : "MALE" })); }}
+                          <button type="button" onClick={() => { setSpouseMode("create"); setNewSpouseForm(p => ({ ...p, firstName: spouseSearch, gender: gender === "MALE" ? "FEMALE" : "MALE", isBirthDateLunar: false })); }}
                             className="text-[11px] text-secondary/60 hover:text-secondary underline underline-offset-2 cursor-pointer transition-colors">
                             + Thêm {gender === "MALE" ? "vợ" : "chồng"} mới
                           </button>

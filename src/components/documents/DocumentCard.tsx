@@ -43,6 +43,7 @@ interface DocumentCardProps {
   onView: (id: string) => void;
   onEdit: (id: string, e: React.MouseEvent) => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
+  canEdit?: boolean;
 }
 
 export function DocumentCard({
@@ -59,6 +60,7 @@ export function DocumentCard({
   onView,
   onEdit,
   onDelete,
+  canEdit = false,
 }: DocumentCardProps) {
   // Parse files
   const fileList = React.useMemo(() => {
@@ -158,22 +160,24 @@ export function DocumentCard({
             </div>
             <p className="text-[8px] font-black text-secondary uppercase tracking-[0.2em] mb-4 drop-shadow-lg">Chi tiết hồ sơ</p>
             
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={(e) => { e.stopPropagation(); onEdit(id, e); }}
-                className="w-8 h-8 rounded-lg bg-white/10 text-white flex items-center justify-center hover:bg-white/20 hover:scale-110 transition-all border border-white/5"
-                title="Sửa"
-              >
-                <Edit3 className="w-4 h-4" />
-              </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); onDelete(id, e); }}
-                className="w-8 h-8 rounded-lg bg-red-950/40 text-red-400 flex items-center justify-center hover:bg-red-900/60 hover:scale-110 transition-all border border-red-500/20"
-                title="Xóa"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
+            {canEdit && (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onEdit(id, e); }}
+                  className="w-8 h-8 rounded-lg bg-white/10 text-white flex items-center justify-center hover:bg-white/20 hover:scale-110 transition-all border border-white/5"
+                  title="Sửa"
+                >
+                  <Edit3 className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(id, e); }}
+                  className="w-8 h-8 rounded-lg bg-red-950/40 text-red-400 flex items-center justify-center hover:bg-red-900/60 hover:scale-110 transition-all border border-red-500/20"
+                  title="Xóa"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </motion.div>
         </div>
       </div>
