@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/db";
 import { getAnniversaryInfo, UpcomingAnniversary, getAnniversaryFromFlexibleFields } from "@/utils/lunar/index";
-import { Lunar } from "lunar-javascript";
+import { Lunar, Solar } from "lunar-javascript";
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 
 export interface AnniversaryItem extends UpcomingAnniversary {
@@ -148,6 +148,106 @@ export async function getFamilyEvents() {
   }
 }
 import { auth } from "@/auth";
+
+// ── Calendar Widget Data ─────────────────────────────────────────────────────
+
+export interface CalendarAnniversary {
+  memberId: string;
+  fullName: string;
+  generation: number;
+  avatar: string | null;
+  solarDay: number;
+  lunarDay: number;
+  lunarMonth: number;
+  formattedLunar: string;
+}
+
+export async function getAnniversariesForCalendar(
+  year: number,
+  month: number // 1-12
+): Promise<CalendarAnniversary[]> {
+  noStore();
+  try {
+    const deceasedMembers = await prisma.familyMember.findMany({
+      where: {
+        isAlive: false,
+        OR: [
+          { dateOfDeath: { not: null } },
+          { AND: [{ deathDay: { not: null } }, { deathMonth: { not: null } }] }
+        ]
+      },
+      select: {
+        id: true,
+        fullName: true,
+        generation: true,
+        avatar: true,
+        dateOfDeath: true,
+        deathDay: true,
+        deathMonth: true,
+        deathYear: true,
+        isDeathDateLunar: true,
+      }
+    });
+
+    const results: CalendarAnniversary[] = [];
+
+    for (const m of deceasedMembers) {
+      let lunarDay: number, lunarMonth: number;
+
+      if (m.deathDay && m.deathMonth) {
+        if (m.isDeathDateLunar) {
+          lunarDay = m.deathDay;
+          lunarMonth = m.deathMonth;
+        } else {
+          const s = Solar.fromDate(new Date(m.deathYear || year, m.deathMonth - 1, m.deathDay));
+          const l = s.getLunar();
+          lunarDay = l.getDay();
+          lunarMonth = Math.abs(l.getMonth());
+        }
+      } else if (m.dateOfDeath) {
+        const s = Solar.fromDate(new Date(m.dateOfDeath));
+        const l = s.getLunar();
+        lunarDay = l.getDay();
+        lunarMonth = Math.abs(l.getMonth());
+      } else {
+        continue;
+      }
+
+      // Convert lunar anniversary date to solar for the target year
+      try {
+        const targetLunar = Lunar.fromYmd(year, lunarMonth, lunarDay);
+        const targetSolar = targetLunar.getSolar();
+        const solarMonth = targetSolar.getMonth();
+        const solarDay = targetSolar.getDay();
+        const solarYear = targetSolar.getYear();
+
+        // Check if the converted solar date falls in the requested month
+        if (solarMonth === month && solarYear === year) {
+          results.push({
+            memberId: m.id,
+            fullName: m.fullName,
+            generation: m.generation,
+            avatar: m.avatar,
+            solarDay,
+            lunarDay,
+            lunarMonth,
+            formattedLunar: `${lunarDay}/${lunarMonth} ÂL`,
+          });
+        }
+      } catch {
+        // Skip invalid lunar dates (e.g., leap month edge cases)
+        continue;
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Lỗi getAnniversariesForCalendar:", error);
+    return [];
+  }
+}
+
+
 
 export async function lightIncenseAction(memberId: string) {
   const session = await auth();

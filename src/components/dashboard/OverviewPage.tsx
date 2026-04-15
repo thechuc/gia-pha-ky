@@ -34,6 +34,7 @@ import { getOverviewData, addEvent, updateFamilyInfo } from "@/app/actions/famil
 import { addDocument } from "@/app/actions/documents";
 import { FamilyTimeline } from "./FamilyTimeline";
 import { UpcomingDeathAnniversaries } from "./UpcomingDeathAnniversaries";
+import { CalendarWidget } from "./CalendarWidget";
 import { FamilyEvent, FamilyDocument, FamilyInfo } from "@/types/family";
 import { CreateHeritageModal } from "@/components/modals/CreateHeritageModal";
 
@@ -461,6 +462,7 @@ export function OverviewPage({ initialData }: { initialData: any }) {
               className="lg:col-span-5 space-y-6"
             >
               <UpcomingDeathAnniversaries />
+              <CalendarWidget />
 
               {/* Documents */}
               <div className="bg-[#1A0F0F]/60 backdrop-blur-xl rounded-[32px] border border-white/5 shadow-2xl flex flex-col">
