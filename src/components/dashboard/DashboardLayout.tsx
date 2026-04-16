@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   Bell,
   Menu,
+  Flame,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -35,6 +36,7 @@ const MENU_ITEMS = [
   { name: "Cây gia phả",   icon: Network,         href: "/dashboard/tree" },
   { name: "Thành viên",    icon: Users,           href: "/dashboard/members" },
   { name: "Sự kiện & Giỗ", icon: Calendar,        href: "/dashboard/events" },
+  { name: "Tưởng niệm",    icon: Flame,           href: "/dashboard/memorial" },
   { name: "Tài liệu số",   icon: FileText,        href: "/dashboard/documents" },
 ];
 

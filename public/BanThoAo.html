@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Không Gian Thờ Cúng Ảo 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            /* Biến lưu trữ hiệu ứng nhám sần sùi cho bề mặt bột nhang */
+            --powder-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='50' height='50' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background-color: #3b3530; /* Nền xám ấm dự phòng */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: manipulation;
+        }
+
+        /* --- KHÔNG GIAN PHÒNG THỜ (Ánh sáng Studio mượt mà như ảnh) --- */
+        .altar-room {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            /* Gradient mô phỏng ánh sáng spotlight hắt vào tường xám be */
+            background: radial-gradient(circle at 50% 40%, #8c8074 0%, #4a413a 60%, #1f1b18 100%);
+        }
+
+        #smoke-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 40; 
+            pointer-events: none;
+        }
+
+        /* =========================================
+           KIẾN TRÚC BÀN THỜ 3D (THEO ẢNH THAM KHẢO)
+           ========================================= */
+        .altar-3d-wrapper {
+            position: absolute;
+            bottom: 0;
+            left: 5%; /* Bàn chiếm 90% chiều rộng */
+            width: 90%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        /* 1. MẶT BÀN GỖ SÁNG VÀ KHUNG VIỀN ĐEN */
+        .altar-top-surface {
+            position: absolute;
+            bottom: 25%; /* Chiều cao mặt bàn */
+            left: -2%; /* Tràn ra ngoài cấu trúc chân */
+            width: 104%;
+            height: 50%; /* Chiều sâu của mặt bàn */
+            /* Gỗ sáng màu (cam/vàng nâu) */
+            background: linear-gradient(to top, #d98d4f 0%, #e8a876 40%, #b86f35 100%);
+            transform: perspective(1000px) rotateX(70deg);
+            transform-origin: bottom center;
+            /* Khung viền gỗ đen bao quanh mặt bàn */
+            border: 12px solid #29150d;
+            border-bottom: 16px solid #1c0e08; 
+            border-radius: 3px;
+            box-shadow: inset 0 -15px 40px rgba(0,0,0,0.3), 0 8px 15px rgba(0,0,0,0.7);
+            z-index: 5;
+        }
+
+        /* Vân gỗ nhẹ trên mặt bàn sáng */
+        .altar-top-surface::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                repeating-linear-gradient(90deg, rgba(0,0,0,0.02) 0px, rgba(0,0,0,0.02) 1px, transparent 1px, transparent 8px),
+                repeating-linear-gradient(91deg, transparent 0px, rgba(0,0,0,0.03) 3px, transparent 5px);
+            opacity: 0.8;
+        }
+
+        /* Tai bàn (Gỗ nhô ra ở 2 góc dưới mặt bàn) */
+        .altar-ear {
+            position: absolute;
+            bottom: 23%;
+            width: 4%;
+            height: 4%;
+            background: linear-gradient(to bottom, #1c0e08, #0a0503);
+            border-radius: 0 0 4px 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.8);
+            z-index: 4;
+        }
+        .altar-ear.left { left: -1.5%; }
+        .altar-ear.right { right: -1.5%; }
+
+        /* 2. KHỐI CẤU TRÚC MẶT TIỀN (Chứa yếm bàn, kệ, chân) */
+        .altar-front-structure {
+            position: absolute;
+            bottom: 0;
+            left: 2%;
+            width: 96%;
+            height: 25%; /* Khớp với bottom của mặt bàn */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 3;
+        }
+
+        /* Yếm bàn (Apron) - Gỗ đen có hoa văn */
+        .altar-apron {
+            width: 100%;
+            height: 25%;
+            background-color: #24120a;
+            /* Lấy pattern hoa văn chữ Vạn từ SVG defs */
+            background-image: url(#apron-pattern);
+            border-bottom: 2px solid #0f0704;
+            box-shadow: inset 0 5px 15px rgba(0,0,0,0.9);
+            position: relative;
+        }
+
+        /* Kệ dưới yếm bàn (Thanh ngang dày) */
+        .altar-lower-shelf {
+            width: 102%; /* Rộng hơn yếm một chút */
+            height: 18%;
+            background: linear-gradient(to bottom, #361b0f 0%, #1f0f08 40%, #0f0704 100%);
+            border-top: 1px solid #4a2717;
+            border-bottom: 3px solid #000;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.8);
+            margin-bottom: -1px;
+            z-index: 2;
+            /* Hoa văn nhám mịn cho gáy kệ */
+            background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.4) 0px, rgba(0,0,0,0.4) 2px, transparent 2px, transparent 4px);
+        }
+
+        /* Khu vực chân bàn */
+        .altar-legs-area {
+            width: 90%;
+            flex: 1;
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        /* Chân bàn thẳng, vững chãi */
+        .altar-leg {
+            width: 6%;
+            height: 100%;
+            background: linear-gradient(to right, #0f0704 0%, #2b150c 20%, #1c0e08 80%, #0a0503 100%);
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        /* Chỉ viền trên chân bàn */
+        .altar-leg::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 15%; width: 70%; height: 100%;
+            border-left: 1px solid rgba(255,255,255,0.05);
+            border-right: 1px solid rgba(0,0,0,0.8);
+        }
+
+        /* Thanh giằng dưới cùng */
+        .altar-stretcher {
+            position: absolute;
+            bottom: 12%;
+            left: 6%;
+            width: 88%;
+            height: 10%;
+            background: linear-gradient(to bottom, #2b150c 0%, #0f0704 100%);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.7);
+        }
+
+        /* Ke góc trang trí (Bracket) hình gấp khúc */
+        .bracket {
+            position: absolute;
+            width: 4vw; /* Dùng vw để scale theo màn hình */
+            height: 3vw;
+            border: 4px solid #1c0e08;
+            z-index: -1;
+        }
+        
+        /* Ke góc nối Chân và Yếm bàn (Trên) */
+        .bracket.top-left {
+            top: 0; right: 100%;
+            border-right: none; border-top: none;
+            border-radius: 0 0 0 6px;
+            box-shadow: -2px 2px 5px rgba(0,0,0,0.5);
+        }
+        .bracket.top-right {
+            top: 0; left: 100%;
+            border-left: none; border-top: none;
+            border-radius: 0 0 6px 0;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* Thêm nét gấp khúc nhỏ cho ke góc trên */
+        .bracket.top-left::after, .bracket.top-right::after {
+            content: ''; position: absolute; width: 15px; height: 15px; border: 4px solid #1c0e08;
+        }
+        .bracket.top-left::after { bottom: -4px; right: -4px; border-bottom: none; border-right: none; }
+        .bracket.top-right::after { bottom: -4px; left: -4px; border-bottom: none; border-left: none; }
+
+        /* Ke góc nối Chân và Thanh giằng (Dưới) */
+        .bracket.bottom-left {
+            bottom: 22%; right: 100%;
+            width: 2.5vw; height: 1.5vw;
+            border-right: none; border-bottom: none;
+            border-radius: 6px 0 0 0;
+        }
+        .bracket.bottom-right {
+            bottom: 22%; left: 100%;
+            width: 2.5vw; height: 1.5vw;
+            border-left: none; border-bottom: none;
+            border-radius: 0 6px 0 0;
+        }
+
+        /* =========================================
+           CÁC ĐỒ VẬT TRÊN BÀN THỜ (Đã nâng trục Y)
+           ========================================= */
+
+        /* BỘ NGŨ SỰ */
+        .altar-set-container {
+            position: absolute;
+            bottom: 50%; /* Nâng cao lên khớp với mặt bàn mới */ 
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 500px;
+            z-index: 22;
+            pointer-events: auto;
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+        }
+        .altar-set-container:active { cursor: grabbing; }
+
+        .altar-set-img {
+            width: 100%;
+            height: auto;
+            /* Giữ nguyên bóng áp sát mặt bàn */
+            filter: drop-shadow(0 4px 10px rgba(0,0,0,0.85));
+        }
+
+        .shadow-set {
+            position: absolute;
+            bottom: 1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 75%;
+            height: 12px;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 40%, transparent 80%);
+            border-radius: 50%;
+            filter: blur(4px);
+            z-index: -1;
+        }
+
+        /* CÂY NẾN ĐỎ ĐỘNG */
+        .candle-wrapper {
+            position: absolute;
+            top: 46%;
+            width: 14px;
+            height: 55px;
+            z-index: 23;
+            transform: translate(-50%, -100%);
+        }
+        .candle-wrapper.left { left: 12.5%; }
+        .candle-wrapper.right { left: 87.5%; }
+
+        .candle-body {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, #5a0000 0%, #d40000 30%, #e60000 50%, #b30000 80%, #4a0000 100%);
+            border-radius: 2px 2px 0 0;
+            box-shadow: 2px 3px 6px rgba(0,0,0,0.6);
+        }
+        .candle-body::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 6px;
+            background: #ff3333; border-radius: 50%; box-shadow: inset 0 2px 2px rgba(255,255,255,0.4);
+        }
+        .candle-body::after {
+            content: ''; position: absolute; top: 4px; left: 2px; width: 3px; height: 18px;
+            background: linear-gradient(to bottom, #e60000, #b30000); border-radius: 2px;
+        }
+
+        .candle-wick {
+            position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+            width: 2px; height: 5px; background: #111;
+        }
+
+        .candle-flame-obj {
+            position: absolute; bottom: calc(100% + 1px); left: 50%; width: 9px; height: 22px;
+            background: radial-gradient(ellipse at 50% 90%, rgba(0, 100, 255, 0.7) 0%, rgba(255, 255, 255, 1) 25%, rgba(255, 215, 0, 1) 55%, rgba(255, 80, 0, 0.7) 80%, transparent 100%);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            box-shadow: 0 -1px 8px 1px rgba(255, 150, 0, 0.6), 0 -4px 15px 4px rgba(255, 80, 0, 0.2);
+            animation: flame-flicker 0.1s ease-in-out infinite alternate, flame-sway 3s ease-in-out infinite alternate;
+            transform-origin: 50% 90%; transform: translateX(-50%);
+        }
+
+        .candle-halo {
+            position: absolute; bottom: calc(100% - 10px); left: 50%; transform: translateX(-50%);
+            width: 45px; height: 45px;
+            background: radial-gradient(circle, rgba(255, 180, 0, 0.3) 0%, rgba(255, 80, 0, 0.05) 40%, transparent 70%);
+            border-radius: 50%; pointer-events: none;
+            animation: pulse-halo 2s infinite alternate; z-index: -1; 
+        }
+
+        @keyframes pulse-halo {
+            0% { transform: translateX(-50%) scale(1); opacity: 0.8; }
+            100% { transform: translateX(-50%) scale(1.15); opacity: 1; }
+        }
+
+        /* BÁT NHANG */
+        .bowl-container {
+            position: absolute;
+            bottom: 31%; /* Nâng cao lên khớp mặt bàn mới */
+            left: 50%;
+            transform: translateX(-50%) scale(0.9);
+            transform-origin: center bottom;
+            width: 158px; height: 122px; cursor: pointer; z-index: 30; transition: transform 0.2s;
+        }
+        .bowl-container:hover {
+            transform: translateX(-50%) scale(0.92);
+            filter: drop-shadow(0 0 15px rgba(255, 200, 100, 0.25));
+        }
+
+        /* Đổ bóng Ambient thật cho khối mặt ngoài của bát nhang in xuống bàn */
+        .bowl-container > svg:last-of-type {
+            filter: drop-shadow(0 10px 10px rgba(0,0,0,0.6));
+        }
+
+        /* Bóng gầm (Contact Shadow) khóa chặt phần đế */
+        .shadow-bowl {
+            position: absolute; 
+            bottom: 3px; /* Ép sát đáy nét vẽ SVG */
+            left: 50%; 
+            transform: translateX(-50%); 
+            width: 122px; /* Ôm khít đường kính đế gỗ bát nhang */
+            height: 12px;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0.95) 10%, rgba(0,0,0,0.7) 40%, transparent 75%);
+            border-radius: 50%; filter: blur(1.5px); z-index: -1;
+        }
+
+        /* KHU VỰC CẮM NHANG TRONG BÁT */
+        .planted-sticks-area {
+            position: absolute; top: 34px; left: 50%; width: 80px; height: 10px;
+            transform: translateX(-50%); z-index: 31;
+        }
+
+        .old-stick {
+            position: absolute; width: 2.5px;
+            background: linear-gradient(to right, #7a0000 0%, #cc0000 45%, #9e0000 60%, #5a0000 100%);
+            border-radius: 2px 2px 0 0; transform-origin: bottom center; bottom: 0;
+        }
+        .old-stick::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 5px;
+            background: linear-gradient(to bottom, #3a3a3a 0%, #111 50%, transparent 100%);
+            border-radius: 2px 2px 0 0; opacity: var(--tip-opacity, 0.8);
+        }
+
+        /* CÂY NHANG ĐANG CHÁY */
+        .incense-stick {
+            position: absolute; width: 4px; height: 140px; transform-origin: bottom center;
+        }
+        
+        .stick-burn {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 4px; height: 100px;
+            background-image: var(--powder-texture), linear-gradient(to right, #4d3324 0%, #6b4a36 45%, #5a3d2b 60%, #4d3324 100%);
+            background-size: 50px 50px, 100% 100%; border-radius: 2px; box-shadow: 0 2px 3px rgba(0,0,0,0.8); z-index: 2;
+        }
+
+        .stick-base {
+            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 2.5px; height: 40px;
+            background: linear-gradient(to right, #7a0000 0%, #cc0000 45%, #9e0000 60%, #5a0000 100%); z-index: 1;
+        }
+
+        .stick-burn::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+            background-image: var(--powder-texture), radial-gradient(circle at 50% 50%, #d23c00 0%, #8a2000 40%, #444 80%, #222 100%);
+            background-size: 20px 20px, 100% 100%; box-shadow: 0 0 2px 0px rgba(163, 43, 0, 0.4);
+            border-radius: var(--ember-radius, 2px);
+            animation: pulse-glow-subtle var(--glow-speed, 3s) infinite alternate var(--glow-delay, 0s); z-index: 2;
+        }
+
+        .stick-burn::after {
+            content: ''; position: absolute; bottom: 100%; left: 0; width: 100%; height: var(--ash-height, 4px);
+            background-image: var(--powder-texture), linear-gradient(to top, #666, #999, transparent);
+            background-size: 50px 50px, 100% 100%; border-radius: 2px 2px 0 0;
+            transform: rotate(var(--ash-angle, 0deg)); transform-origin: bottom center; opacity: 0.85; z-index: 1;
+        }
+
+        .burned-out .stick-burn::before, .burned-out .stick-burn::after { display: none; }
+        .burned-out .stick-base::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 6px;
+            background: linear-gradient(to bottom, #3a3a3a 0%, #111 50%, transparent 100%);
+            border-radius: 2px 2px 0 0; opacity: var(--tip-opacity, 0.8);
+        }
+
+        @keyframes pulse-glow-subtle {
+            0% { opacity: 0.8; box-shadow: 0 0 1px 0px rgba(163, 43, 0, 0.2); filter: brightness(0.8); }
+            100% { opacity: 1; box-shadow: 0 0 2px 1px rgba(210, 60, 0, 0.5); filter: brightness(1.1); }
+        }
+
+        #cursor-stick {
+            display: none; position: fixed; pointer-events: none; z-index: 100;
+            transform: translate(-50%, -80%); opacity: 0.8; filter: drop-shadow(2px 5px 5px rgba(0,0,0,0.5));
+        }
+
+        /* ỐNG NHANG LỤC BÌNH */
+        .incense-box {
+            position: absolute;
+            bottom: 32%; /* Nâng cao khớp mặt bàn */
+            right: 12%; 
+            width: 55px; height: 190px; cursor: pointer; z-index: 30; 
+            transform: scale(1); transform-origin: bottom center; transition: transform 0.2s;
+        }
+        .incense-box:hover { transform: scale(1.05); }
+
+        /* Đổ bóng Ambient thật cho thân ống nhang in xuống bàn */
+        .incense-box > svg {
+            filter: drop-shadow(0 10px 10px rgba(0,0,0,0.6));
+        }
+
+        /* Bóng gầm (Contact Shadow) khóa chặt phần đế */
+        .shadow-box {
+            position: absolute; 
+            bottom: 0px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            width: 42px; /* Ôm khít đúng bằng đáy ống */
+            height: 7px;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0.95) 10%, rgba(0,0,0,0.7) 40%, transparent 80%);
+            border-radius: 50%; filter: blur(1px); z-index: -1;
+        }
+        
+        @keyframes flame-flicker {
+            0% { opacity: 0.9; transform: translateX(-50%) scaleY(0.97) scaleX(1.03); }
+            100% { opacity: 1; transform: translateX(-50%) scaleY(1.03) scaleX(0.97); }
+        }
+
+        @keyframes flame-sway {
+            0% { transform: translateX(-50%) rotate(0deg) skewX(0deg); }
+            25% { transform: translateX(-50%) rotate(-8deg) skewX(-4deg); } 
+            50% { transform: translateX(-50%) rotate(3deg) skewX(1deg); }
+            75% { transform: translateX(-50%) rotate(8deg) skewX(4deg); } 
+            100% { transform: translateX(-50%) rotate(0deg) skewX(0deg); }
+        }
+
+        /* --- UI LAYER --- */
+        .ui-layer {
+            position: absolute; top: 20px; left: 0; width: 100%; display: flex; flex-direction: column; align-items: center; z-index: 50; pointer-events: none;
+        }
+        
+        .ui-text {
+            color: #d4af37; font-size: 1.1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.6); padding: 8px 16px; border-radius: 20px; pointer-events: auto; border: 1px solid #d4af37; margin-bottom: 10px; text-align: center; max-width: 90%;
+        }
+
+        .btn-bell {
+            pointer-events: auto; background: linear-gradient(to bottom, #b8860b, #8b6508);
+            color: white; border: none; padding: 10px 24px; border-radius: 25px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 2px 2px rgba(255,255,255,0.3); text-shadow: 0 1px 2px rgba(0,0,0,0.8); transition: all 0.1s;
+        }
+        .btn-bell:active { transform: scale(0.95); box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+
+        #flash-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 230, 150, 0.15);
+            opacity: 0; pointer-events: none; z-index: 90; transition: opacity 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+
+    <svg width="0" height="0" style="position:absolute;">
+        <defs>
+            <filter id="rough-texture">
+                <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" result="noise" />
+                <feColorMatrix type="matrix" values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0   0 0 0 0.4 0" in="noise" result="coloredNoise" />
+                <feComposite operator="in" in="coloredNoise" in2="SourceGraphic" result="maskedNoise" />
+                <feBlend in="SourceGraphic" in2="maskedNoise" mode="darken" />
+            </filter>
+
+            <!-- HOA VĂN YẾM BÀN (Dựa trên ảnh: họa tiết gấp khúc / chữ Vạn / Meander) -->
+            <pattern id="apron-pattern" x="0" y="0" width="80" height="40" patternUnits="userSpaceOnUse">
+                <!-- Màu nền đã set ở CSS, đây chỉ là nét cắt -->
+                <!-- Đường chạy dọc/ngang tạo họa tiết hình học -->
+                <path d="M 0 10 L 30 10 L 30 30 L 20 30 L 20 20 L 10 20 L 10 30 L 0 30" fill="none" stroke="#140a05" stroke-width="3"/>
+                <path d="M 40 30 L 70 30 L 70 10 L 60 10 L 60 20 L 50 20 L 50 10 L 40 10" fill="none" stroke="#140a05" stroke-width="3"/>
+                
+                <!-- Nét highlight mỏng giả chạm khắc 3D -->
+                <path d="M 0 10 L 30 10 L 30 30 L 20 30 L 20 20 L 10 20 L 10 30 L 0 30" fill="none" stroke="#4a2717" stroke-width="1" transform="translate(0, -1)"/>
+                <path d="M 40 30 L 70 30 L 70 10 L 60 10 L 60 20 L 50 20 L 50 10 L 40 10" fill="none" stroke="#4a2717" stroke-width="1" transform="translate(0, -1)"/>
+                
+                <!-- Viền trang trí nhỏ -->
+                <rect x="35" y="15" width="10" height="10" fill="none" stroke="#140a05" stroke-width="2"/>
+                <rect x="35" y="15" width="10" height="10" fill="none" stroke="#4a2717" stroke-width="1" transform="translate(0, -1)"/>
+            </pattern>
+
+            <linearGradient id="bronze" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#2c1e08" />
+                <stop offset="15%" stop-color="#8a631c" />
+                <stop offset="50%" stop-color="#ffd700" />
+                <stop offset="85%" stop-color="#8a631c" />
+                <stop offset="100%" stop-color="#2c1e08" />
+            </linearGradient>
+            <linearGradient id="bronze-dark" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#1c1204" />
+                <stop offset="50%" stop-color="#5c4305" />
+                <stop offset="100%" stop-color="#1c1204" />
+            </linearGradient>
+            <radialGradient id="ash" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#aaa" />
+                <stop offset="70%" stop-color="#666" />
+                <stop offset="100%" stop-color="#333" />
+            </radialGradient>
+            <linearGradient id="wood-centered" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#1f0c01" />
+                <stop offset="25%" stop-color="#5c2908" />
+                <stop offset="50%" stop-color="#8b4513" />
+                <stop offset="75%" stop-color="#5c2908" />
+                <stop offset="100%" stop-color="#1f0c01" />
+            </linearGradient>
+
+            <pattern id="diamond-band" x="0" y="0" width="16" height="16" patternUnits="userSpaceOnUse">
+                <path d="M 8 2 L 16 8 L 8 14 L 0 8 Z" fill="none" stroke="#d4af37" stroke-width="1" opacity="0.6"/>
+                <circle cx="8" cy="8" r="1.5" fill="#ffdf00" opacity="0.8"/>
+            </pattern>
+
+            <linearGradient id="wood-box" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#2b1103" />
+                <stop offset="25%" stop-color="#6e3514" />
+                <stop offset="60%" stop-color="#a65426" />
+                <stop offset="85%" stop-color="#52260e" />
+                <stop offset="100%" stop-color="#1f0a02" />
+            </linearGradient>
+            <linearGradient id="stick-3d-back" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#2a2a2a" />
+                <stop offset="50%" stop-color="#1a1a1a" />
+                <stop offset="100%" stop-color="#050505" />
+            </linearGradient>
+            <linearGradient id="stick-3d-mid" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#3a3a3a" />
+                <stop offset="50%" stop-color="#262626" />
+                <stop offset="100%" stop-color="#0a0a0a" />
+            </linearGradient>
+            <linearGradient id="stick-3d-front" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#777" />
+                <stop offset="40%" stop-color="#555" />
+                <stop offset="80%" stop-color="#333" />
+                <stop offset="100%" stop-color="#111" />
+            </linearGradient>
+            <linearGradient id="red-base-3d" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#660000" />
+                <stop offset="50%" stop-color="#cc0000" />
+                <stop offset="100%" stop-color="#330000" />
+            </linearGradient>
+        </defs>
+    </svg>
+
+    <div class="altar-room" id="room">
+        <div id="flash-overlay"></div>
+        <canvas id="smoke-canvas"></canvas>
+
+        <div class="ui-layer">
+            <div class="ui-text" id="status-text">1. Chạm vào ống nhang bên phải để lấy nhang</div>
+            <div style="color: #bbb; font-size: 0.9rem; margin-bottom: 10px; text-shadow: 0 1px 2px #000;">
+                (Bạn có thể kéo thả bộ ngũ sự phía sau để căn chỉnh)
+            </div>
+            <button class="btn-bell" onclick="playTempleBell()">🔔 Thỉnh Chuông</button>
+        </div>
+
+        <!-- =========================================
+             BÀN THỜ 3D MỚI (KIẾN TRÚC THEO ẢNH)
+             ========================================= -->
+        <div class="altar-3d-wrapper">
+            <!-- Mặt bàn trải rộng về phía sau -->
+            <div class="altar-top-surface"></div>
+            <!-- Tai bàn nhỏ ở góc dưới mặt bàn -->
+            <div class="altar-ear left"></div>
+            <div class="altar-ear right"></div>
+            
+            <!-- Khối mặt tiền (Yếm, Kệ ngang dưới, Chân, Giằng) -->
+            <div class="altar-front-structure">
+                <div class="altar-apron"></div>
+                <div class="altar-lower-shelf"></div>
+                
+                <div class="altar-legs-area">
+                    <!-- Chân Trái -->
+                    <div class="altar-leg left">
+                        <div class="bracket top-right"></div>
+                        <div class="bracket bottom-right"></div>
+                    </div>
+                    
+                    <!-- Thanh giằng ngang sát đất -->
+                    <div class="altar-stretcher"></div>
+                    
+                    <!-- Chân Phải -->
+                    <div class="altar-leg right">
+                        <div class="bracket top-left"></div>
+                        <div class="bracket bottom-left"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- =========================================
+             CÁC ĐỒ VẬT TRÊN BÀN (LỚP NỔI)
+             ========================================= -->
+        
+        <!-- BỘ NGŨ SỰ (ẢNH ĐỈNH HẠC VÀ NẾN - ĐẶT PHÍA SAU) -->
+        <div class="altar-set-container">
+            <div class="shadow-set"></div>
+            
+            <img src="./image.png" alt="Bộ Ngũ Sự" class="altar-set-img" onerror="this.src='image.png'">
+            
+            <div class="candle-wrapper left">
+                <div class="candle-halo"></div>
+                <div class="candle-body"></div>
+                <div class="candle-wick"></div>
+                <div class="candle-flame-obj"></div>
+            </div>
+
+            <div class="candle-wrapper right">
+                <div class="candle-halo"></div>
+                <div class="candle-body"></div>
+                <div class="candle-wick"></div>
+                <div class="candle-flame-obj"></div>
+            </div>
+        </div>
+
+        <!-- BÁT NHANG (ĐẶT PHÍA TRƯỚC) -->
+        <div class="bowl-container" id="incense-bowl">
+            <div class="shadow-bowl"></div>
+            
+            <!-- MẶT TRONG CỦA BÁT NHANG (CHE LẤP BỞI TRO) -->
+            <svg width="100%" height="100%" viewBox="0 0 220 170" style="position: absolute; bottom: 0; z-index: 30;">
+                <path d="M 35 45 A 75 14 0 0 1 185 45 L 175 45 A 65 11 0 0 0 45 45 Z" fill="#5c4305"/>
+                <path d="M 45 45 A 65 11 0 0 1 175 45 L 175 52 A 65 11 0 0 0 45 52 Z" fill="#150a02"/>
+                <path d="M 45 52 A 65 11 0 0 1 175 52 Z" fill="#3a3a3a"/>
+            </svg>
+
+            <!-- Nơi cắm nhang -->
+            <div class="planted-sticks-area" id="planted-area"></div>
+            
+            <!-- TRO NHANG VÀ MẶT NGOÀI BÁT NHANG -->
+            <svg width="100%" height="100%" viewBox="0 0 220 170" style="position: absolute; bottom: 0; pointer-events: none; z-index: 32;">
+                <!-- Bề mặt tro -->
+                <path d="M 45 52 A 65 11 0 0 0 175 52 Z" fill="url(#ash)"/>
+                <g opacity="0.85">
+                    <circle cx="110" cy="55" r="1.5" fill="#ccc" />
+                    <circle cx="95" cy="57" r="1" fill="#fff" />
+                    <circle cx="125" cy="56" r="2" fill="#aaa" />
+                    <circle cx="75" cy="54" r="1.5" fill="#eee" />
+                    <circle cx="145" cy="55" r="1.5" fill="#bbb" />
+                    <circle cx="85" cy="59" r="1" fill="#ddd" />
+                    <circle cx="135" cy="58" r="1.2" fill="#ccc" />
+                    <circle cx="105" cy="60" r="0.8" fill="#fff" />
+                    <circle cx="115" cy="57" r="1.2" fill="#aaa" />
+                    <circle cx="160" cy="54" r="1" fill="#999" />
+                    <circle cx="60" cy="53" r="1.5" fill="#bbb" />
+                    
+                    <!-- Vết đỏ hồng hồng của than -->
+                    <circle cx="100" cy="58" r="2.5" fill="#ff4500" opacity="0.3"/>
+                    <circle cx="100" cy="58" r="1.5" fill="#ff4500" opacity="0.9"/>
+                    <circle cx="120" cy="57" r="2" fill="#ff4500" opacity="0.3"/>
+                    <circle cx="120" cy="57" r="1" fill="#ff4500" opacity="0.8"/>
+                    <circle cx="110" cy="60" r="1.2" fill="#ff4500" opacity="0.85"/>
+                </g>
+
+                <!-- Đế bát nhang gỗ -->
+                <ellipse cx="110" cy="135" rx="82" ry="16" fill="#1f0c01"/>
+                <path d="M 28 135 L 25 148 A 85 16 0 0 0 195 148 L 192 135 Z" fill="url(#wood-centered)"/>
+                <path d="M 28 135 A 82 16 0 0 0 192 135" fill="none" stroke="#8b4513" stroke-width="1.5"/>
+
+                <!-- THÂN BÁT NHANG (ĐỒNG) -->
+                <path d="M 35 45 A 75 14 0 0 0 185 45 L 185 130 A 75 14 0 0 1 35 130 Z" fill="url(#bronze)"/>
+
+                <!-- CỔ BÁT NHANG (DẢI BĂNG HỌA TIẾT KIM TIỀN TRUYỀN THỐNG) -->
+                <path d="M 35 52 A 75 14 0 0 0 185 52 L 185 68 A 75 14 0 0 1 35 68 Z" fill="url(#bronze-dark)"/>
+                <path d="M 35 52 A 75 14 0 0 0 185 52 L 185 68 A 75 14 0 0 1 35 68 Z" fill="url(#diamond-band)"/>
+                <path d="M 35 52 A 75 14 0 0 0 185 52" fill="none" stroke="#ffdf00" stroke-width="1.5" filter="drop-shadow(0 1px 1px rgba(0,0,0,0.5))"/>
+                <path d="M 35 68 A 75 14 0 0 0 185 68" fill="none" stroke="#d4af37" stroke-width="2.5" filter="drop-shadow(0 2px 2px rgba(0,0,0,0.6))"/>
+
+                <!-- Vòng chỉ chân đế -->
+                <path d="M 35 120 A 75 14 0 0 0 185 120 L 185 124 A 75 14 0 0 1 35 124 Z" fill="url(#bronze-dark)"/>
+                <path d="M 35 120 A 75 14 0 0 0 185 120" fill="none" stroke="#d4af37" stroke-width="1"/>
+
+                <!-- Miệng bát nhang (Vành trên cùng) -->
+                <path d="M 35 45 A 75 14 0 0 0 185 45 L 175 45 A 65 11 0 0 1 45 45 Z" fill="url(#bronze)"/>
+                <path d="M 35 45 A 75 14 0 0 0 185 45" fill="none" stroke="#ffdf00" stroke-width="2.5" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.5))"/>
+                <path d="M 45 45 A 65 11 0 0 0 175 45" fill="none" stroke="#d4af37" stroke-width="1.5"/>
+
+                <!-- HỌA TIẾT ÂM DƯƠNG 3D CAO CẤP CHÍNH GIỮA -->
+                <g transform="translate(110, 109)" filter="drop-shadow(0px 5px 6px rgba(0,0,0,0.85))">
+                    <circle cx="0" cy="0" r="27" fill="url(#bronze-dark)"/>
+                    <circle cx="0" cy="0" r="25" fill="none" stroke="#8a631c" stroke-width="3" stroke-dasharray="4 3"/>
+                    <circle cx="0" cy="0" r="23" fill="#1a1103" stroke="#ffdf00" stroke-width="1.5"/>
+                    <g transform="rotate(-15)">
+                        <path d="M 0 -21 A 21 21 0 0 0 0 21 A 10.5 10.5 0 0 1 0 0 A 10.5 10.5 0 0 0 0 -21 Z" fill="#3B170B"/>
+                        <path d="M 0 -21 A 21 21 0 0 1 0 21 A 10.5 10.5 0 0 1 0 0 A 10.5 10.5 0 0 0 0 -21 Z" fill="#d4af37"/>
+                        <circle cx="0" cy="-10.5" r="4" fill="#2A120A" />
+                        <circle cx="0" cy="10.5" r="4" fill="#ffdf00" />
+                    </g>
+                    <path d="M -23 0 A 23 23 0 0 1 23 0 A 23 13 0 0 0 -23 0" fill="rgba(255, 240, 180, 0.25)"/>
+                    <path d="M -23 0 A 23 23 0 0 0 23 0 A 23 13 0 0 1 -23 0" fill="rgba(0, 0, 0, 0.45)"/>
+                </g>
+            </svg>
+        </div>
+
+        <!-- ỐNG NHANG LỤC BÌNH GỖ BÓNG -->
+        <div class="incense-box" id="incense-box">
+            <div class="shadow-box"></div>
+            <svg width="100%" height="100%" viewBox="0 0 100 420" preserveAspectRatio="none" style="position: absolute; bottom: 0;">
+                <defs>
+                    <linearGradient id="glossy-wood" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#210800" />
+                        <stop offset="10%" stop-color="#4a1501" />
+                        <stop offset="25%" stop-color="#9e3505" />
+                        <stop offset="35%" stop-color="#d95a16" />
+                        <stop offset="42%" stop-color="#f58a3f" /> 
+                        <stop offset="48%" stop-color="#d95a16" />
+                        <stop offset="65%" stop-color="#732100" />
+                        <stop offset="85%" stop-color="#3d0e00" />
+                        <stop offset="100%" stop-color="#140400" />
+                    </linearGradient>
+                    <linearGradient id="glossy-wood-dark" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#140400" />
+                        <stop offset="35%" stop-color="#4a1300" />
+                        <stop offset="50%" stop-color="#731f00" />
+                        <stop offset="80%" stop-color="#2a0a00" />
+                        <stop offset="100%" stop-color="#0a0200" />
+                    </linearGradient>
+                </defs>
+                <path d="M 12 410 A 38 8 0 0 0 88 410 L 85 395 A 35 7 0 0 1 15 395 Z" fill="url(#glossy-wood)"/>
+                <ellipse cx="50" cy="395" rx="35" ry="7" fill="url(#glossy-wood-dark)"/>
+                <path d="M 15 395 A 35 7 0 0 0 85 395 C 85 385, 75 375, 68 365 A 18 4 0 0 1 32 365 C 25 375, 15 385, 15 395 Z" fill="url(#glossy-wood)"/>
+                <ellipse cx="50" cy="365" rx="18" ry="4" fill="url(#glossy-wood-dark)"/>
+                <path d="M 32 365 A 18 4 0 0 0 68 365 C 74 350, 78 330, 75 310 A 25 5 0 0 1 25 310 C 22 330, 26 350, 32 365 Z" fill="url(#glossy-wood)"/>
+                <ellipse cx="50" cy="310" rx="25" ry="5" fill="url(#glossy-wood-dark)"/>
+                <path d="M 25 310 A 25 5 0 0 0 75 310 C 78 308, 80 305, 78 300 A 28 6 0 0 1 22 300 C 20 305, 22 308, 25 310 Z" fill="url(#glossy-wood)"/>
+                <ellipse cx="50" cy="300" rx="28" ry="6" fill="url(#glossy-wood-dark)"/>
+                <path d="M 22 300 A 28 6 0 0 0 78 300 C 80 297, 80 293, 77 290 A 27 5 0 0 1 23 290 C 20 293, 20 297, 22 300 Z" fill="url(#glossy-wood)"/>
+                <ellipse cx="50" cy="290" rx="27" ry="5" fill="url(#glossy-wood-dark)"/>
+                <path d="M 23 290 A 27 5 0 0 0 77 290 C 75 260, 80 240, 85 220 A 35 7 0 0 1 15 220 C 20 240, 25 260, 23 290 Z" fill="url(#glossy-wood)"/>
+                <ellipse cx="50" cy="220" rx="35" ry="7" fill="url(#glossy-wood-dark)"/>
+                <path d="M 15 220 A 35 7 0 0 0 85 220 C 90 220, 96 210, 96 200 A 46 10 0 0 1 4 200 C 4 210, 10 220, 15 220 Z" fill="url(#glossy-wood)"/>
+                <ellipse cx="50" cy="200" rx="46" ry="10" fill="url(#glossy-wood)"/>
+                <ellipse cx="50" cy="200" rx="35" ry="7" fill="#1f0600"/>
+                <ellipse cx="50" cy="202" rx="30" ry="5" fill="#000" opacity="0.9" filter="blur(2px)"/>
+                <g id="sticks-group"></g>
+                <path d="M 15 200 A 35 7 0 0 0 85 200 L 96 200 A 46 10 0 0 1 4 200 Z" fill="url(#glossy-wood)"/>
+                <path d="M 15 200 A 35 7 0 0 0 85 200" fill="none" stroke="#f58a3f" stroke-width="0.8" opacity="0.4"/>
+            </svg>
+        </div>
+
+    </div>
+
+    <!-- Nhang cầm trên tay -->
+    <div id="cursor-stick">
+        <div class="incense-stick" style="position: relative; --ash-height: 2px; --ash-angle: -10deg;">
+            <div class="stick-burn"></div>
+            <div class="stick-base"></div>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================
+           0. KHỞI TẠO CHÂN NHANG CŨ (LỘC NHANG)
+           ========================================= */
+        const plantedArea = document.getElementById('planted-area');
+        
+        function createOldSticks() {
+            const numOldSticks = Math.floor(Math.random() * 20) + 30; 
+            
+            for(let i=0; i<numOldSticks; i++) {
+                const oldStick = document.createElement('div');
+                oldStick.className = 'old-stick';
+                
+                const height = Math.random() * 35 + 10;
+                oldStick.style.height = height + 'px';
+                
+                const randomX = 5 + Math.random() * 90; 
+                const randomY = Math.random() * 100;
+                const angle = (Math.random() - 0.5) * 20;
+
+                oldStick.style.left = randomX + '%';
+                oldStick.style.bottom = randomY + '%';
+                oldStick.style.transform = `rotate(${angle}deg)`;
+                oldStick.style.zIndex = Math.round(100 - randomY);
+
+                const tipOpacity = Math.random() > 0.3 ? (0.4 + Math.random() * 0.5) : (0.05 + Math.random() * 0.2);
+                oldStick.style.setProperty('--tip-opacity', tipOpacity);
+
+                plantedArea.appendChild(oldStick);
+            }
+        }
+        
+        createOldSticks();
+
+        /* =========================================
+           0.1 KHỞI TẠO CHÙM NHANG TRONG ỐNG BẰNG JS (Real 3D Depth)
+           ========================================= */
+        function generateBoxSticks() {
+            const group = document.getElementById('sticks-group');
+            let sticks = [];
+            
+            for(let i = 0; i < 60; i++) { 
+                const r = Math.sqrt(Math.random()) * 30; 
+                const theta = Math.random() * Math.PI * 2;
+                
+                // Tọa độ cắm (gốc nhang) nằm trọn trong Lỗ đen (cy=200, ry=7)
+                const baseX = 50 + r * Math.cos(theta);
+                const baseY = 200 + r * Math.sin(theta) * (7/35); 
+                
+                const spread = (baseX - 50) * 0.7 + (Math.random() - 0.5) * 8;
+                const topX = baseX + spread;
+                const topY = 40 + Math.random() * 110; 
+
+                const dx = baseX - topX;
+                const dy = baseY - topY;
+                const length = Math.sqrt(dx*dx + dy*dy);
+                const redLen = 15 + Math.random() * 8; 
+                const ratio = (length - redLen) / length;
+                const midX = topX + dx * ratio;
+                const midY = topY + dy * ratio;
+
+                sticks.push({ baseX, baseY, topX, topY, midX, midY });
+            }
+            
+            // Sắp xếp theo trục Y (từ xa đến gần) để hiệu ứng đè lớp 3D chuẩn xác
+            sticks.sort((a, b) => a.baseY - b.baseY);
+
+            let html = '';
+            sticks.forEach(s => {
+                const stickColor = ['#5a3d2b', '#4d3324', '#6b4a36', '#543827'][Math.floor(Math.random()*4)];
+                const redColor = ['#9e0000', '#cc0000', '#7a0000'][Math.floor(Math.random()*3)];
+                const width = 2 + Math.random() * 1.5;
+                
+                html += `<g stroke-linecap="round">
+                    <line x1="${s.topX}" y1="${s.topY}" x2="${s.midX}" y2="${s.midY}" stroke="${stickColor}" stroke-width="${width}" />
+                    <line x1="${s.midX}" y1="${s.midY}" x2="${s.baseX}" y2="${s.baseY}" stroke="${redColor}" stroke-width="${width}" />
+                </g>`;
+            });
+            group.innerHTML = html;
+        }
+        
+        generateBoxSticks();
+
+        /* =========================================
+           DRAG AND DROP CHO BỘ NGŨ SỰ
+           ========================================= */
+        const altarSet = document.querySelector('.altar-set-container');
+        let isDraggingAltar = false;
+        let dragStartX = 0, dragStartY = 0;
+        let currentAltarX = 0, currentAltarY = 0;
+
+        function startDragAltar(clientX, clientY) {
+            if(isHolding) return; 
+            isDraggingAltar = true;
+            dragStartX = clientX - currentAltarX;
+            dragStartY = clientY - currentAltarY;
+            altarSet.style.cursor = 'grabbing';
+        }
+
+        altarSet.addEventListener('mousedown', (e) => {
+            startDragAltar(e.clientX, e.clientY);
+        });
+
+        altarSet.addEventListener('touchstart', (e) => {
+            startDragAltar(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDraggingAltar) return;
+            currentAltarX = e.clientX - dragStartX;
+            currentAltarY = e.clientY - dragStartY;
+            altarSet.style.transform = `translate(calc(-50% + ${currentAltarX}px), ${currentAltarY}px)`;
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (!isDraggingAltar) return;
+            e.preventDefault(); 
+            currentAltarX = e.touches[0].clientX - dragStartX;
+            currentAltarY = e.touches[0].clientY - dragStartY;
+            altarSet.style.transform = `translate(calc(-50% + ${currentAltarX}px), ${currentAltarY}px)`;
+        }, {passive: false});
+
+        document.addEventListener('mouseup', () => {
+            if(isDraggingAltar) {
+                isDraggingAltar = false;
+                altarSet.style.cursor = 'grab';
+            }
+        });
+
+        document.addEventListener('touchend', () => {
+            if(isDraggingAltar) {
+                isDraggingAltar = false;
+                altarSet.style.cursor = 'grab';
+            }
+        });
+
+        /* =========================================
+           1. LOGIC TƯƠNG TÁC LẤY VÀ CẮM NHANG
+           ========================================= */
+        const box = document.getElementById('incense-box');
+        const bowl = document.getElementById('incense-bowl');
+        const cursorStick = document.getElementById('cursor-stick');
+        const statusText = document.getElementById('status-text');
+        
+        let isHolding = false;
+        let activeSticks = []; 
+
+        const BURN_DURATION_MS = 5 * 60 * 1000; 
+
+        box.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if(!isHolding) {
+                isHolding = true;
+                cursorStick.style.display = 'block';
+                updateCursorPos(e.clientX, e.clientY);
+                statusText.innerText = "2. Nhấp vào bát nhang để cắm nhang";
+                statusText.style.color = "#fff";
+                statusText.style.borderColor = "#fff";
+            }
+        });
+
+        function updateCursorPos(x, y) {
+            cursorStick.style.left = x + 'px';
+            cursorStick.style.top = y + 'px';
+        }
+
+        document.addEventListener('mousemove', (e) => {
+            if(isHolding) updateCursorPos(e.clientX, e.clientY);
+        });
+        
+        document.addEventListener('touchmove', (e) => {
+            if(isHolding) {
+                const touch = e.touches[0];
+                updateCursorPos(touch.clientX, touch.clientY);
+            }
+        }, {passive: true});
+
+        bowl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if(isHolding) {
+                isHolding = false;
+                cursorStick.style.display = 'none';
+                
+                statusText.innerText = "Tâm tĩnh lặng. Khói trầm toả ngát.";
+                statusText.style.color = "#d4af37";
+                statusText.style.borderColor = "#d4af37";
+
+                plantIncense();
+            }
+        });
+
+        document.addEventListener('click', () => {
+            if(isHolding) {
+                isHolding = false;
+                cursorStick.style.display = 'none';
+                statusText.innerText = "1. Chạm vào ống nhang bên phải để lấy nhang";
+            }
+        });
+
+        function getBestPlantPosition() {
+            // Cây đầu tiên luôn ở chính giữa
+            if (activeSticks.length === 0) {
+                return { x: 50, y: 50 }; 
+            }
+
+            const numCandidates = 50; 
+            let bestCandidate = { x: 50, y: 50 };
+            let bestScore = -Infinity;
+
+            for (let i = 0; i < numCandidates; i++) {
+                let r = Math.pow(Math.random(), 0.8) * 45; 
+                let angle = Math.random() * Math.PI * 2;
+                let cx = 50 + r * Math.cos(angle);
+                let cy = 50 + r * Math.sin(angle);
+
+                cx = Math.max(5, Math.min(95, cx));
+                cy = Math.max(0, Math.min(100, cy));
+
+                let minDistPx = Infinity;
+                for (let stick of activeSticks) {
+                    let dxPx = ((cx - stick.x) / 100) * 80;
+                    let dyPx = ((cy - stick.y) / 100) * 10;
+                    let distPx = Math.sqrt(dxPx*dxPx + dyPx*dyPx);
+                    if (distPx < minDistPx) minDistPx = distPx;
+                }
+
+                let dCenterXPx = ((cx - 50) / 100) * 80;
+                let dCenterYPx = ((cy - 50) / 100) * 10;
+                let distCenterPx = Math.sqrt(dCenterXPx*dCenterXPx + dCenterYPx*dCenterYPx);
+
+                let score = Math.min(minDistPx, 5) * 10 - distCenterPx;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCandidate = { x: cx, y: cy };
+                }
+            }
+            return bestCandidate;
+        }
+
+        function plantIncense() {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'incense-stick';
+            
+            const ashHeight = 0.5 + Math.random() * 2; 
+            const ashAngle = (Math.random() - 0.5) * 40; 
+            const glowSpeed = 2 + Math.random() * 2; 
+            const glowDelay = -(Math.random() * 5); 
+            const emberRadius = Math.random() > 0.5 ? '50%' : '2px'; 
+            const tipOpacity = Math.random() > 0.3 ? (0.4 + Math.random() * 0.5) : (0.05 + Math.random() * 0.2); 
+
+            wrapper.style.setProperty('--ash-height', ashHeight + 'px');
+            wrapper.style.setProperty('--ash-angle', ashAngle + 'deg');
+            wrapper.style.setProperty('--glow-speed', glowSpeed + 's');
+            wrapper.style.setProperty('--glow-delay', glowDelay + 's');
+            wrapper.style.setProperty('--ember-radius', emberRadius);
+            
+            const stickBurn = document.createElement('div');
+            stickBurn.className = 'stick-burn';
+            const stickBase = document.createElement('div');
+            stickBase.className = 'stick-base';
+            stickBase.style.setProperty('--tip-opacity', tipOpacity);
+
+            wrapper.appendChild(stickBurn);
+            wrapper.appendChild(stickBase);
+            
+            const pos = getBestPlantPosition();
+            
+            wrapper.style.left = pos.x + '%';
+            wrapper.style.bottom = pos.y + '%';
+            wrapper.style.zIndex = Math.round(100 - pos.y);
+            
+            plantedArea.appendChild(wrapper);
+            
+            activeSticks.push({
+                wrapper: wrapper,
+                burnEl: stickBurn,
+                plantedTime: Date.now(),
+                x: pos.x,
+                y: pos.y
+            });
+        }
+
+        /* =========================================
+           2. HỆ THỐNG HẠT KHÓI & CHÁY - CANVAS
+           ========================================= */
+        const canvas = document.getElementById('smoke-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let globalSmokePhase = 0; 
+        let globalWindX = 0; 
+        let windTime = Math.random() * 100; 
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class SmokeParticle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = 2; 
+                this.maxSize = 25 + Math.random() * 15; 
+                this.vx = (Math.random() - 0.5) * 0.3; 
+                this.vy = -(0.5 + Math.random() * 0.5); 
+                this.life = 0;
+                this.maxLife = 120 + Math.random() * 60;
+            }
+
+            update() {
+                this.life++;
+                let progress = this.life / this.maxLife;
+                
+                this.x += this.vx + (globalWindX * progress * 2.5);
+                this.y += this.vy;
+                
+                if (this.size < this.maxSize) {
+                    this.size += 0.2;
+                }
+            }
+
+            draw(ctx) {
+                let progress = this.life / this.maxLife;
+                if (progress >= 1) return;
+
+                let alpha = (1 - progress) * 0.04;
+
+                const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+                gradient.addColorStop(0, `rgba(225, 230, 235, ${alpha})`);
+                gradient.addColorStop(1, 'rgba(225, 230, 235, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function getStickTipPosition(burnElem) {
+            const rect = burnElem.getBoundingClientRect();
+            return {
+                x: rect.left + rect.width / 2,
+                y: rect.top
+            };
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            globalSmokePhase -= 0.015; 
+
+            windTime += 0.005;
+            globalWindX = Math.sin(windTime) * 0.6 + Math.sin(windTime * 0.25) * 0.8;
+
+            for (let i = activeSticks.length - 1; i >= 0; i--) {
+                const stickObj = activeSticks[i];
+                const elapsed = Date.now() - stickObj.plantedTime;
+                
+                let progress = 1 - (elapsed / BURN_DURATION_MS); 
+                
+                if (progress <= 0) {
+                    progress = 0;
+                    stickObj.wrapper.classList.add('burned-out');
+                    activeSticks.splice(i, 1);
+                }
+                
+                stickObj.burnEl.style.height = (100 * progress) + 'px';
+            }
+
+            particles = particles.filter(p => p.life < p.maxLife);
+
+            activeSticks.forEach(stickObj => {
+                const tip = getStickTipPosition(stickObj.burnEl);
+                
+                if(Math.random() > 0.88) {
+                    particles.push(new SmokeParticle(tip.x, tip.y));
+                }
+            });
+
+            particles.forEach(p => {
+                p.update();
+                p.draw(ctx);
+            });
+
+            requestAnimationFrame(animate);
+        }
+        
+        animate();
+
+        /* =========================================
+           3. TỔNG HỢP ÂM THANH: TIẾNG CHUÔNG CHÙA
+           ========================================= */
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function playTempleBell() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const t = audioCtx.currentTime;
+            const freqs = [350, 698, 1050, 1400];
+            const gains = [1, 0.4, 0.2, 0.1];
+
+            freqs.forEach((freq, index) => {
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+
+                gainNode.gain.setValueAtTime(0, t);
+                gainNode.gain.linearRampToValueAtTime(gains[index] * 0.8, t + 0.02);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, t + 5);
+
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                osc.start(t);
+                osc.stop(t + 5);
+            });
+
+            const flash = document.getElementById('flash-overlay');
+            flash.style.transition = 'none';
+            flash.style.opacity = '1';
+            setTimeout(() => {
+                flash.style.transition = 'opacity 2s ease-out';
+                flash.style.opacity = '0';
+            }, 50);
+        }
+    </script>
+</body>
+</html>

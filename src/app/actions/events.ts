@@ -146,10 +146,7 @@ export async function getFamilyEvents() {
     console.error("Lỗi getFamilyEvents:", error);
     return [];
   }
-}
-import { auth } from "@/auth";
-
-// ── Calendar Widget Data ─────────────────────────────────────────────────────
+}// ── Calendar Widget Data ─────────────────────────────────────────────────────
 
 export interface CalendarAnniversary {
   memberId: string;
@@ -250,17 +247,36 @@ export async function getAnniversariesForCalendar(
 
 
 export async function lightIncenseAction(memberId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    throw new Error("Bạn cần đăng nhập để thực hiện hành động này.");
-  }
-  
   try {
+    // Lấy dữ liệu hiện tại để cập nhật metadata
+    const member = await prisma.familyMember.findUnique({
+      where: { id: memberId },
+      select: { metadata: true }
+    });
+
+    const now = new Date();
+    let metadata = (member?.metadata as any) || {};
+    let incenseSticks = metadata.incenseSticks || [];
+
+    // Thêm nén nhang mới (lưu dạng ISO string)
+    incenseSticks.push(now.toISOString());
+
+    // Giới hạn tối đa 9 nén, nếu vượt quá thì xóa nén cũ nhất
+    if (incenseSticks.length > 9) {
+      incenseSticks.shift();
+    }
+
+    metadata.incenseSticks = incenseSticks;
+
     const updated = await prisma.familyMember.update({
       where: { id: memberId },
-      data: { lastIncenseLitAt: new Date() }
+      data: { 
+        lastIncenseLitAt: now,
+        metadata: metadata
+      }
     });
-    revalidatePath("/dashboard");
+
+    revalidatePath("/dashboard/memorial");
     return { success: true, lastIncenseLitAt: updated.lastIncenseLitAt };
   } catch (error) {
     console.error("Lỗi lightIncenseAction:", error);
