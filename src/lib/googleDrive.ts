@@ -113,12 +113,16 @@ export async function uploadToDrive(
       webViewLink: response.data.webViewLink,
       directLink: `https://lh3.googleusercontent.com/d/${fileId}`,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error uploading to Google Drive via OAuth:', error);
-    if (error instanceof Error) {
-      console.error('Error details:', error.message);
+    
+    // Phát hiện lỗi token hết hạn → thông báo rõ ràng cho admin
+    const errorMsg = error?.message || '';
+    if (errorMsg.includes('invalid_grant') || errorMsg.includes('Token has been expired or revoked')) {
+      throw new Error('Google Drive token đã hết hạn. Vui lòng truy cập OAuth Playground để tạo Refresh Token mới và cập nhật vào .env (GOOGLE_DRIVE_REFRESH_TOKEN).');
     }
-    throw new Error('Failed to upload file to Google Drive');
+    
+    throw new Error('Lỗi upload ảnh lên Google Drive. Vui lòng thử lại.');
   }
 }
 

@@ -89,10 +89,12 @@ export function Hero({ isPublic, coverImage }: { isPublic?: boolean; coverImage?
                   ) : (
                     <TreeDeciduous className="w-32 h-32 text-primary opacity-20 group-hover:scale-110 transition-transform duration-700" />
                   )}
-                  <div className={`text-center z-10 ${coverImage ? 'bg-black/40 backdrop-blur-sm p-4 rounded-xl border border-white/10' : ''}`}>
-                     <span className="block text-primary/60 font-serif italic text-2xl mb-1">Gia Phả Ký</span>
-                     <span className="block text-white/40 text-sm font-bold uppercase tracking-[0.3em]">Di Sản Kỹ Thuật Số</span>
-                  </div>
+                  {!coverImage && (
+                    <div className="text-center z-10">
+                       <span className="block text-primary/60 font-serif italic text-2xl mb-1">Gia Phả Ký</span>
+                       <span className="block text-white/40 text-sm font-bold uppercase tracking-[0.3em]">Di Sản Kỹ Thuật Số</span>
+                    </div>
+                  )}
                 </div>
             </div>
             

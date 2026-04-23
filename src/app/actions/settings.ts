@@ -24,24 +24,33 @@ export async function updateFamilyIdentityAction(id: string, data: any) {
 
   // Xử lý ảnh bìa (Cover Image)
   if (data.coverImage && data.coverImage.startsWith('data:')) {
-    try {
-      const base64Data = data.coverImage.split(';base64,').pop();
-      if (base64Data) {
-        const buffer = Buffer.from(base64Data, 'base64');
-        const driveResult = await uploadToDrive(buffer, `family-cover-${Date.now()}`, 'image/jpeg');
-        
-        // Xóa ảnh cũ nếu có
-        const currentFamily = await prisma.family.findUnique({ where: { id }, select: { coverImage: true } });
-        if (currentFamily?.coverImage && currentFamily.coverImage.includes('drive.google.com')) {
-          const match = currentFamily.coverImage.match(/\/d\/([^/]+)\//);
-          if (match) await deleteFromDrive(match[1]);
-        }
-
-        updateData.coverImage = driveResult.directLink;
-      }
-    } catch (error) {
-      console.error('Error uploading family cover to Drive:', error);
+    // Ảnh mới được chọn (base64) → upload lên Google Drive
+    const base64Data = data.coverImage.split(';base64,').pop();
+    if (!base64Data) {
+      throw new Error('Dữ liệu ảnh không hợp lệ.');
     }
+
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    // Detect mimeType từ data URL
+    const mimeMatch = data.coverImage.match(/^data:(image\/\w+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+
+    const driveResult = await uploadToDrive(buffer, `family-cover-${Date.now()}`, mimeType);
+    
+    // Xóa ảnh cũ nếu có
+    const currentFamily = await prisma.family.findUnique({ where: { id }, select: { coverImage: true } });
+    if (currentFamily?.coverImage && currentFamily.coverImage.includes('googleusercontent.com')) {
+      const match = currentFamily.coverImage.match(/\/d\/([^/?]+)/);
+      if (match) {
+        try { await deleteFromDrive(match[1]); } catch { /* ignore delete error */ }
+      }
+    }
+
+    updateData.coverImage = driveResult.directLink;
+  } else if (data.coverImage) {
+    // Ảnh không đổi (vẫn là URL cũ) → giữ nguyên
+    updateData.coverImage = data.coverImage;
   }
 
   const family = await prisma.family.update({
@@ -164,7 +173,7 @@ export async function getUserPreferencesAction() {
  */
 export async function updateUserPreferencesAction(preferences: any) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error('Unauthorized');
+  if (!session?.user?.id) return { success: false };
 
   await prisma.user.update({
     where: { id: session.user.id },

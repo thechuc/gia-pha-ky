@@ -1,7 +1,7 @@
 "use client";
 
 import { SettingSection } from "./SettingSection";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Save, Image as ImageIcon, Globe, FileText, Upload } from "lucide-react";
 import { updateFamilyIdentityAction } from "@/app/actions/settings";
 import { useToast } from "@/components/ui/Toast";
@@ -13,6 +13,7 @@ interface IdentitySettingsViewProps {
 export default function IdentitySettingsView({ family }: IdentitySettingsViewProps) {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: family?.name || "",
     motto: family?.motto || "",
@@ -42,10 +43,18 @@ export default function IdentitySettingsView({ family }: IdentitySettingsViewPro
       }
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({ ...formData, coverImage: reader.result as string });
+        setFormData(prev => ({ ...prev, coverImage: reader.result as string }));
       };
       reader.readAsDataURL(file);
     }
+    // Reset input value để cho phép chọn lại cùng 1 file
+    if (e.target) {
+      e.target.value = "";
+    }
+  };
+
+  const triggerFileSelect = () => {
+    fileInputRef.current?.click();
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -101,26 +110,40 @@ export default function IdentitySettingsView({ family }: IdentitySettingsViewPro
         description="Ảnh bìa dòng họ hiển thị trên trang chủ và các khu vực công cộng."
       >
         <div className="space-y-4">
+          {/* File input ẩn duy nhất, dùng ref để trigger */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*"
+            onChange={handleImageChange}
+          />
           <div className="relative w-full aspect-video rounded-2xl bg-white/5 border border-dashed border-white/20 flex flex-col items-center justify-center p-4 group overflow-hidden">
             {formData.coverImage ? (
               <>
                 <img src={formData.coverImage} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Cover" />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <label className="bg-white/10 backdrop-blur-md hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-bold cursor-pointer transition-all">
+                  <button
+                    type="button"
+                    onClick={triggerFileSelect}
+                    className="bg-white/10 backdrop-blur-md hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-bold cursor-pointer transition-all"
+                  >
                     Chỉnh sửa ảnh
-                    <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-                  </label>
+                  </button>
                 </div>
               </>
             ) : (
-              <label className="flex flex-col items-center gap-2 cursor-pointer text-slate-500 hover:text-white transition-colors">
+              <button
+                type="button"
+                onClick={triggerFileSelect}
+                className="flex flex-col items-center gap-2 cursor-pointer text-slate-500 hover:text-white transition-colors"
+              >
                 <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:scale-110 transition-transform">
                   <Upload className="w-6 h-6" />
                 </div>
                 <span className="text-sm font-bold uppercase tracking-tight">Tải ảnh lên</span>
                 <span className="text-[10px]">Định dạng JPG, PNG (Tối đa 5MB)</span>
-                <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-              </label>
+              </button>
             )}
           </div>
         </div>
